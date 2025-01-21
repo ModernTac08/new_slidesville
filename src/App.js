@@ -26,7 +26,7 @@ function Nav() {
 function Home() {
   return ( 
     <Nav />
-      
+
     
   );
 
