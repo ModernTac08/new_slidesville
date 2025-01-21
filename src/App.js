@@ -6,9 +6,12 @@ import { Link } from "react-router-dom";
 
 function Nav() {
   return (
-    
     <div>
-      
+      <img 
+        src="/images/Logo.png" // Replace with the path to your image
+        alt="Slidesville Logo"
+        style={{ width: "100px", height: "auto" }} // Optional inline styling
+      />
       <h1>Slidesville</h1>
       <h2>Your one stop shop for inflatable fun!!</h2>
       <nav>
