@@ -1,8 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import { App } from './App';
-import { SignIn, Booking, Inflatables } from "./App";
+import { SignIn, Booking, Inflatables, About, App } from "./App";
 import { 
   BrowserRouter, 
   Routes, 
@@ -18,6 +17,7 @@ root.render(
       <Route path="/inflatables" element={<Inflatables />} />
       <Route path="/signin" element={<SignIn />} />
       <Route path="/booking" element={<Booking />} />
+      <Route path="/about" element={<About />} />
     </Routes>
   </BrowserRouter>,
   document.getElementById("root")
