@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import { SignIn, Booking, Inflatables, About, App } from "./App";
+import { SignIn, Booking, Inflatables, About, App, AdminFeaturedProducts, SignUp, ForgotPassword, ResetPassword } from "./App";
 import { 
   BrowserRouter, 
   Routes, 
@@ -18,9 +18,14 @@ root.render(
       <Route path="/signin" element={<SignIn />} />
       <Route path="/booking" element={<Booking />} />
       <Route path="/about" element={<About />} />
+      <Route path="/admin" element={<AdminFeaturedProducts />} />
+      <Route path="/signup" element={<SignUp />} />
+      <Route path="/forgotpass" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+
     </Routes>
   </BrowserRouter>,
-  document.getElementById("root")
+
 );
 
 

@@ -1,36 +1,44 @@
 const express = require('express');
-const mysql = require('mysql2')
-const cors = require('cors')
-require('dotenv').config();
+const cors = require('cors');
+const { loginUser, registerUser, requestPasswordReset, resetPassword } = require('./dbFiles/dbOperation');
 
-const app = express()
-const port = process.env.PORT || 5000;
 
-app.use(cors());
+const app = express();
 app.use(express.json());
 
-const db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+app.use(cors({
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST']
+}));
 
-});
 
-db.connect((err) => {
-    if (err) {
-        console.error('Database connection failed:', err.stack);
-        return;
-    }
-    console.log('Connected to the database.');
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    const result = await loginUser(email, password);
+    res.json(result);
 });
 
 
+app.post('/signup', async (req, res) => {
+    const { email, password } = req.body;
+    const result = await registerUser(email, password);
+    res.json(result);
+});
 
-app.get('/', (re, res)=> {
-    return res.json("From Backend Side");
-})
+app.post('/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    const result = await requestPasswordReset(email);
+    res.json(result);
+});
 
-app.listen(8081, ()=> {
-    console.log("listening");
-})
+app.post('/reset-password', async (req, res) => {
+    const { token, newPassword } = req.body;
+    const result = await resetPassword(token, newPassword);
+    res.json(result);
+});
+
+
+
+app.listen(8081, () => {
+    console.log("Server is running on port 8081...");
+});

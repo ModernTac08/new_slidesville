@@ -12,6 +12,8 @@ import 'react-time-picker/dist/TimePicker.css';
 import 'react-clock/dist/Clock.css';
 import dayjs from 'dayjs';
 import 'antd/dist/reset.css';
+import axios from 'axios'
+import { useSearchParams } from "react-router-dom";
 
 
 //These are the features used in the pages
@@ -181,7 +183,106 @@ function BookingSelector(){
   );
 }
 
+export function SignUp() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const navigate = useNavigate();
 
+  const handleSignUp = (e) => {
+      e.preventDefault();
+      axios.post('http://localhost:8081/signup', { email, password })
+          .then((res) => setMessage(res.data.message || res.data.error))
+          .catch((err) => setMessage(err.response?.data?.error || "Error signing up"));
+  };
+
+  return (
+    <div className='page'>
+      <Nav />
+      <div className='content'>
+      <form onSubmit={handleSignUp}>
+          <h2>Sign Up</h2>
+          {message && <p>{message}</p>}
+          <div>
+            <label htmlFor='email'>Email</label>
+            <input
+              type='email'
+              placeholder='Email Address'
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor='password'>Password</label>
+            <input
+              type='password'
+              placeholder='Password'
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button type='submit'>Sign Up</button>
+          
+        </form>
+      </div>
+      <div className='footer'>
+        <Footer />
+      </div>
+    </div>
+  );
+}
+
+export function ForgotPassword() {
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+
+  function handleSubmit(event) {
+      event.preventDefault();
+      axios.post('http://localhost:8081/forgot-password', { email })
+          .then((res) => setMessage(res.data.message))
+          .catch(() => setMessage("Error requesting password reset."));
+  }
+
+  return (
+      <div>
+          <h2>Forgot Password</h2>
+          {message && <p>{message}</p>}
+          <form onSubmit={handleSubmit}>
+              <label>Email:</label>
+              <input type="email" onChange={(e) => setEmail(e.target.value)} required />
+              <button type="submit">Reset Password</button>
+          </form>
+      </div>
+  );
+}
+
+export function ResetPassword() {
+  const [newPassword, setNewPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token");
+
+  function handleSubmit(event) {
+      event.preventDefault();
+      axios.post('http://localhost:8081/reset-password', { token, newPassword })
+          .then((res) => setMessage(res.data.message))
+          .catch(() => setMessage("Error resetting password."));
+  }
+
+  return (
+      <div>
+          <h2>Reset Password</h2>
+          {message && <p>{message}</p>}
+          <form onSubmit={handleSubmit}>
+              <label>New Password:</label>
+              <input type="password" onChange={(e) => setNewPassword(e.target.value)} required />
+              <button type="submit">Update Password</button>
+          </form>
+      </div>
+  );
+}
 
 
 
@@ -235,7 +336,6 @@ export function Inflatables() {
 
 }
 
-
 export function Booking() {
   return (
     <div className='page'>
@@ -252,24 +352,6 @@ export function Booking() {
   );
 
 }
-
-export function SignIn() {
-  return (
-    <div className='page'>
-      <Nav />
-      <div className='content'>
-        
-        
-      </div>
-      <div className='footer'>
-        <Footer/>
-      </div>
-    </div>
-    
-  );
-
-}
-
 
 export function About() {
   const navigate = useNavigate();
@@ -303,6 +385,73 @@ export function About() {
 
 }
 
+export function SignIn() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const navigate = useNavigate();
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    axios
+      .post('http://localhost:8081/login', { email, password })
+      .then((res) => {
+        if (res.data.message === "Login Successful") {
+          setMessage("Login Successful");
+
+          if (res.data.role === 'admin') {
+            navigate('/admin');
+          } else if (res.data.role === 'user') {
+            navigate('/');
+          }
+        } else {
+          setMessage(res.data.error || "Login failed. Please check your credentials.");
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        setMessage("An error occurred while trying to log in.");
+      });
+  }
+
+  return (
+    <div className='page'>
+      <Nav />
+      <div className='content'>
+        <form onSubmit={handleSubmit}>
+          <h2>Sign In</h2>
+          {message && <p>{message}</p>}
+          <div>
+            <label htmlFor='email'>Email</label>
+            <input
+              type='email'
+              placeholder='Email Address'
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor='password'>Password</label>
+            <input
+              type='password'
+              placeholder='Password'
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button type='submit'>Login</button>
+          <button onClick={() => navigate("/signup")} className=''>Sign Up</button>
+          <button onClick={() => navigate("/forgotpass")} className=''>Forgot Password</button>
+        </form>
+      </div>
+      <div className='footer'>
+        <Footer />
+      </div>
+    </div>
+  );
+}
 
 
 
@@ -378,14 +527,6 @@ export function AdminAccounts() {
   );
 
 }
-
-
-
-
-
-
-
-
 
 
 
