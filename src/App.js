@@ -418,32 +418,35 @@ export function SignIn() {
     <div className='page'>
       <Nav />
       <div className='content'>
-        <form onSubmit={handleSubmit}>
-          <h2>Sign In</h2>
-          {message && <p>{message}</p>}
-          <div>
+        <form onSubmit={handleSubmit} className='SignInContainer'>
+          <h2>LOGIN</h2>
+          {message && <p className='errorMessage'>{message}</p>}
+          <div className='loginInfo'>
             <label htmlFor='email'>Email</label>
             <input
               type='email'
-              placeholder='Email Address'
+              placeholder=''
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
-          <div>
+          <div className='loginInfo'>
             <label htmlFor='password'>Password</label>
             <input
               type='password'
-              placeholder='Password'
+              placeholder=''
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
-          <button type='submit'>Login</button>
-          <button onClick={() => navigate("/signup")} className=''>Sign Up</button>
-          <button onClick={() => navigate("/forgotpass")} className=''>Forgot Password</button>
+          <button type='submit' className='BlueButton loginBtn'>Login</button>
+          <button onClick={() => navigate("/forgotpass")} className='forgotPasswordBtn'>Forgot Password</button>
+          <p className='signUpText'>
+            Need an account?<button onClick={() => navigate("/signup")} className='signUpBtn'>SIGN UP</button>
+          </p>
+
         </form>
       </div>
       <div className='footer'>
