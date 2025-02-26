@@ -2,8 +2,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import './App.css';
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams, Navigate, Outlet } from "react-router-dom";
 import { faFacebook } from "@fortawesome/free-brands-svg-icons";
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -12,8 +11,21 @@ import 'react-time-picker/dist/TimePicker.css';
 import 'react-clock/dist/Clock.css';
 import dayjs from 'dayjs';
 import 'antd/dist/reset.css';
-import axios from 'axios'
-import { useSearchParams } from "react-router-dom";
+import axios from 'axios';
+
+
+// This is the functiom checking if the user is an Admin
+
+const isAdmin = () => {
+  const token = localStorage.getItem('token');
+  const role = localStorage.getItem('role');
+
+  return token && role === 'admin';
+};
+
+export const ProtectedAdminRoute = () => {
+  return isAdmin() ? <Outlet /> : <Navigate to="/signin" />;
+};
 
 
 //These are the features used in the pages
@@ -48,6 +60,20 @@ function Nav() {
 
 }
 
+function AdminNav() {
+  return (
+    <div className='adminNavBar'>
+      <nav>
+        <Link to="/admin/dashboard">Home</Link>
+        <Link to="/admin/inflatables">Inflatables</Link>
+        <Link to="/admin/schedule">Schedule</Link>
+        <Link to="/admin/accounts">Accounts</Link>
+      </nav>
+    </div>
+  );
+
+}
+
 function Footer() {
   const currentYear = new Date().getFullYear();
   return(
@@ -71,6 +97,13 @@ function Footer() {
 
 function FeaturedProducts() {
   const navigate = useNavigate();
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    axios.get('http://localhost:8081/get-featured-products')
+      .then(res => setProducts(res.data))
+      .catch(err => console.error('Error fetching featured products:', err));
+  }, []);
   
   return (
     <div className="featuredContainer">
@@ -79,33 +112,12 @@ function FeaturedProducts() {
           Featured Products
         </p>
         <section className='featuredSection'>
-
-            <div className="featuredItem">
-              <img
-                src="/images/40 Foot Obstacle Course.jpg"
-                alt="Slidesville Logo"
-                className='featuredImage' >
-              </img>
-              <p>Our 40-Foot Obstacle Course</p>
+          {products.map((product, index) => (
+            <div key={index} className="featuredItem">
+              {product.image && <img src={product.image} alt="Featured" className='featuredImage' />}
+              <p>{product.description}</p>
             </div>
-
-            <div className="featuredItem">
-              <img
-                src="/images/17' Octalous.jpg"
-                alt="Slidesville Logo"
-                className='featuredImage' >
-              </img>
-              <p>Octalous, Our 17 Foot Tall Water Slide!</p>
-            </div>
-
-            <div className="featuredItem">
-              <img
-                src="/images/Tropical Oasis.jpg"
-                alt="Slidesville Logo"
-                className='featuredImage' >
-              </img>
-              <p>Tropical Oasis, a bounce and slide combo!</p>
-            </div>
+          ))}
         </section>
         <button onClick={() => navigate("/inflatables")} className='WhiteButton'>
             See All of Our Products
@@ -246,15 +258,23 @@ export function ForgotPassword() {
   }
 
   return (
-      <div>
-          <h2>Forgot Password</h2>
-          {message && <p>{message}</p>}
-          <form onSubmit={handleSubmit}>
+    <div className='page'>
+    <Nav />
+      <div className='content'>         
+          <form onSubmit={handleSubmit} className='SignInContainer'>
+            <h2>Forgot Password</h2>
+            {message && <p>{message}</p>}
+            <div className='loginInfo'>
               <label>Email:</label>
               <input type="email" onChange={(e) => setEmail(e.target.value)} required />
-              <button type="submit">Reset Password</button>
+            </div> 
+            <button type="submit" className='BlueButton loginBtn'>Reset Password</button>
           </form>
       </div>
+      <div className='footer'>
+        <Footer />
+      </div>    
+    </div>
   );
 }
 
@@ -272,14 +292,22 @@ export function ResetPassword() {
   }
 
   return (
-      <div>
-          <h2>Reset Password</h2>
-          {message && <p>{message}</p>}
-          <form onSubmit={handleSubmit}>
+      <div className='page'>
+        <Nav />
+        <div className='content'>
+          <form onSubmit={handleSubmit} className='SignInContainer'>
+            <h2>Reset Password</h2>
+            {message && <p>{message}</p>}
+            <div className='loginInfo'>
               <label>New Password:</label>
               <input type="password" onChange={(e) => setNewPassword(e.target.value)} required />
-              <button type="submit">Update Password</button>
+            </div>
+              <button type="submit" className='BlueButton loginBtn'>Update Password</button>
           </form>
+        </div>  
+        <div className='footer'>
+        <Footer />
+        </div>
       </div>
   );
 }
@@ -301,7 +329,7 @@ function Home() {
       <div className='content'>
         <FeaturedProducts/>
         <div className='whatsAvailable'>
-          <button onClick={() => navigate("/inflatables")}className='GreyButton'>
+          <button onClick={() => navigate("/booking")}className='GreyButton'>
             See whats available for your event now!
           </button>
         </div>  
@@ -396,16 +424,18 @@ export function SignIn() {
     axios
       .post('http://localhost:8081/login', { email, password })
       .then((res) => {
-        if (res.data.message === "Login Successful") {
-          setMessage("Login Successful");
+        if (res.data.success) {
+          localStorage.setItem('token', res.data.token); 
+          localStorage.setItem('role', res.data.role); 
+          setMessage(res.data.message || "Login Successful");
 
           if (res.data.role === 'admin') {
-            navigate('/admin');
-          } else if (res.data.role === 'user') {
+            navigate('/admin/featured');
+          } else {
             navigate('/');
           }
         } else {
-          setMessage(res.data.error || "Login failed. Please check your credentials.");
+          setMessage(res.data.message || "Login failed. Please check your credentials.");
         }
       })
       .catch((err) => {
@@ -413,6 +443,7 @@ export function SignIn() {
         setMessage("An error occurred while trying to log in.");
       });
   }
+
 
   return (
     <div className='page'>
@@ -464,20 +495,62 @@ export function SignIn() {
 //These are the Admin pages
 
 export function AdminFeaturedProducts() {
+  const navigate = useNavigate();
+  const [featuredProducts, setFeaturedProducts] = useState([
+    { id: 1, image: '', description: '' },
+    { id: 2, image: '', description: '' },
+    { id: 3, image: '', description: '' },
+  ]);
+
+  useEffect(() => {
+    const role = localStorage.getItem('role');
+    if (role !== 'admin') {
+      navigate('/signin');
+    }
+  }, [navigate]);
+
+  const handleFileChange = (event, index) => {
+    const file = event.target.files[0];
+    if (file) {
+      const newProducts = [...featuredProducts];
+      newProducts[index].image = URL.createObjectURL(file);
+      setFeaturedProducts(newProducts);
+    }
+  };
+
+  const handleDescriptionChange = (event, index) => {
+    const newProducts = [...featuredProducts];
+    newProducts[index].description = event.target.value;
+    setFeaturedProducts(newProducts);
+  };
+
+  const handleSave = () => {
+    axios.post('http://localhost:8081/save-featured-products', { products: featuredProducts })
+      .then(() => alert('Featured Products Updated'))
+      .catch(err => console.error('Error saving featured products:', err));
+  };
+
   return (
     <div className='page'>
       <Nav />
       <div className='content'>
-        
-        
+        {featuredProducts.map((product, index) => (
+          <div key={index} className="featured-product">
+            <h2>Featured Product {index + 1}:</h2>
+            <label>Image:</label>
+            <input type="file" onChange={(e) => handleFileChange(e, index)} />
+            {product.image && <img src={product.image} alt="Uploaded Preview" className='featuredProductPreview'/>}
+            <label>Description:</label>
+            <input type="text" value={product.description} onChange={(e) => handleDescriptionChange(e, index)} />
+          </div>
+        ))}
+        <button onClick={handleSave}>Save Featured Products</button>
       </div>
       <div className='footer'>
-        <Footer/>
+        <Footer />
       </div>
     </div>
-    
   );
-
 }
 
 export function AdminInflatables() {
