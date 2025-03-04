@@ -42,6 +42,8 @@ html, body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  padding-bottom: 20vh;
 }
 
 .content {
@@ -55,7 +57,7 @@ html, body {
 .WhiteButton {
   padding: 5px 10px;
   border: 2px solid #007bff;
-  border-radius: 10px;
+  border-radius: 15px;
   color: #007bff;
   text-decoration: none;
   font-weight: bold;
@@ -105,13 +107,59 @@ html, body {
   box-shadow: 4px 4px 10px rgba(0, 0, 0, 1.3);
 }
 
+.adminNavBar {
+  background-color: #5c5c5c;
+  position: fixed;
+  left: 0;
+  top: 20vh;
+  width: 22vh;
+  height: 28vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 0vh;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 1.0);
+  z-index: 1000;
+  font-size: 2vh;
+  color: rgb(255, 255, 255);
+}
+
+.adminNavBar nav {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  gap: 15px;
+}
+
+.adminNavBar p {
+  font-weight: bold;
+  color: #007bff;
+  
+}
+.adminNavBar nav a {
+  padding: 5px 10px;
+  border: 2px solid #ffffff;
+  border-radius: 15px;
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+.adminNavBar nav a:hover {
+  background-color: #007bff;
+  color: white;
+  box-shadow: 4px 4px 10px rgba(0, 0, 0, 1.3);
+}
 
 .navBar {
   background-color: #fbfcfd;
   position: fixed;
   top: 0;
-  width: 90%;
-  height: 20vh;
+  width: 100vw;
+  height: 10vh;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -119,7 +167,7 @@ html, body {
   padding: 0 20px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   z-index: 1000;
-  font-size: calc(10px + 2vmin);
+  font-size: 3vh;
   color: rgb(0, 0, 0);
 }
 
@@ -245,6 +293,45 @@ html, body {
 
 }
 
+
+.inflatableGrid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  margin: auto;
+  max-width: 150vh;
+  padding: 20px;
+}
+
+.inflatableCard {
+  background: white;
+  border: 2px solid #007bff;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.inflatableCard h {
+  font-size: 1.2em;
+  font-weight: bolder;
+  margin: 10px 0;
+}
+
+.inflatableImage {
+  
+  max-width: 100vh;
+  height: 20vh;
+  object-fit: cover;
+  border-radius: 8px; 
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+  display: block;
+  margin: 0 auto;
+}
 
 
 
@@ -374,6 +461,117 @@ html, body {
 
 
 
+/* Admin Sections */
+
+.adminFeaturedContainer {
+    text-align: center;
+    margin: 3vh auto;
+    padding-top: 20vh;  
+  }
+  
+  .admin-featured-product {
+    text-align: center;
+    padding: 3vh;
+    width: 100vh;
+  }
+  
+  .featuredInputFields {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    padding: 3vh;
+    width: 100vh;
+    border: 5px solid #909090;
+    border-radius: 10px;
+    box-shadow: 5px 5px 10px rgba(0, 0, 0, .5);
+    font-size: 24px;
+    font-weight: bold;
+    gap: 2vh;
+  }
+
+  .fileUploadContainer {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 3vh;
+  }
+  
+  .featuredDescription {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 2vh;
+  }
+
+  .featuredProductPreview {
+    width: 20vh;
+    height: 13vh;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .hiddenFileInput {
+    display: none;
+  }
+
+/* Admin Inflatables */
+
+  .adminInflatablesContainer {
+    text-align: center;
+    margin: 3vh auto;
+    padding-top: 20vh;  
+  }
+  
+  .adminInflatablesContainer h2 {
+    font-weight: bolder;
+    font-size: 5vh;
+  }
+  .admin-inflatable-item {
+    align-items: center;
+    padding: 3vh;
+    
+    
+  }
+  
+  .inflatableDetails {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    padding: 3vh;
+    width: 100vh;
+    border: 5px solid #909090;
+    border-radius: 10px;
+    box-shadow: 5px 5px 10px rgba(0, 0, 0, .5);
+    font-size: 24px;
+    font-weight: bold;
+    gap: 2vh;
+  }
+  
+
+  .inflatablePreview {
+    
+    width: 20vh;
+    height: 13vh;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+
+  .deleteButton {
+    position: absolute;
+    top: 1vh;
+    right: 1vh;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    color: red;
+  }
+  
+  .deleteButton:hover {
+    color: darkred;
+  }
 
 .footer {
   background-color: #909090;

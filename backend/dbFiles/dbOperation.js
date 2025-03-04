@@ -148,4 +148,128 @@ async function resetPassword(token, newPassword) {
 }
 
 
-module.exports = { loginUser, registerUser, sendResetEmail, requestPasswordReset, resetPassword};
+
+//This is for the Featured Product uploads
+
+async function saveFeaturedProduct(id, description, imagePath) {
+    try {
+        const pool = await sql.connect(config);
+        let query = `
+            UPDATE featured_products 
+            SET description = @description 
+            WHERE id = @id;
+        `;
+
+        if (imagePath) {
+            query = `
+                UPDATE featured_products 
+                SET description = @description, imagePath = @imagePath 
+                WHERE id = @id;
+            `;
+        }
+
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('description', sql.Text, description)
+            .input('imagePath', sql.VarChar, imagePath || null)
+            .query(query);
+
+        return { success: true, message: "Product updated in database" };
+    } catch (error) {
+        console.error("Database Error:", error);
+        return { success: false, message: "Error updating database" };
+    }
+}
+
+async function getFeaturedProducts() {
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool.request().query("SELECT * FROM featured_products");
+        return result.recordset;
+    } catch (error) {
+        console.error("Error fetching featured products:", error);
+        return [];
+    }
+}
+
+
+
+/* This is for the Inflatables Page */
+
+async function saveInflatable(id, name, price, imagePath) {
+    try {
+        const pool = await sql.connect(config);
+        let query;
+        let request = pool.request()
+            .input('name', sql.VarChar, name)
+            .input('price', sql.Decimal(10,2), price);
+
+        if (id) {
+            if (imagePath) {
+                query = `UPDATE inflatables 
+                         SET name = @name, price = @price, imagePath = @imagePath 
+                         WHERE id = @id`;
+                request.input('imagePath', sql.VarChar, imagePath);
+            } else {
+                query = `UPDATE inflatables 
+                         SET name = @name, price = @price 
+                         WHERE id = @id`;
+            }
+            request.input('id', sql.Int, id);
+            await request.query(query);
+            return { success: true, message: "Inflatable updated successfully", id, imagePath };
+        } else {
+            query = `INSERT INTO inflatables (name, price, imagePath) 
+                     OUTPUT INSERTED.id, INSERTED.imagePath
+                     VALUES (@name, @price, @imagePath)`;
+            request.input('imagePath', sql.VarChar, imagePath || null);
+            const result = await request.query(query);
+            return { success: true, message: "New inflatable added", id: result.recordset[0].id, imagePath: result.recordset[0].imagePath };
+        }
+    } catch (error) {
+        console.error("Database Error:", error);
+        return { success: false, message: "Error saving inflatable." };
+    }
+}
+
+
+
+async function getInflatables() {
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool.request().query("SELECT * FROM inflatables");
+
+        return result.recordset.map(item => ({
+            ...item,
+            imagePath: item.imagePath 
+                ? `http://localhost:8081${item.imagePath.replace(/\\/g, '/')}` 
+                : ''
+        }));
+    } catch (error) {
+        console.error("Error fetching inflatables:", error);
+        return [];
+    }
+}
+
+
+
+
+
+async function deleteInflatable(id) {
+    try {
+        const pool = await sql.connect(config);
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query("DELETE FROM inflatables WHERE id = @id");
+
+        return { success: true, message: "Inflatable deleted successfully" };
+    } catch (error) {
+        console.error("Error deleting inflatable:", error);
+        return { success: false, message: "Error deleting inflatable from the database" };
+    }
+}
+
+
+
+
+module.exports = { loginUser, registerUser, sendResetEmail, requestPasswordReset, resetPassword, getFeaturedProducts, saveFeaturedProduct, saveInflatable, getInflatables, deleteInflatable};

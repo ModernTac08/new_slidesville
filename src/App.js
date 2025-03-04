@@ -4,6 +4,7 @@ import './App.css';
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams, Navigate, Outlet } from "react-router-dom";
 import { faFacebook } from "@fortawesome/free-brands-svg-icons";
+import { faTrash } from '@fortawesome/free-solid-svg-icons';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import TimePicker from 'react-time-picker';
@@ -31,6 +32,17 @@ export const ProtectedAdminRoute = () => {
 //These are the features used in the pages
 
 function Nav() {
+  const navigate = useNavigate();
+  const token = localStorage.getItem('token');
+  const role = localStorage.getItem('role');
+  const isLoggedIn = !!token;
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    navigate('/signin');
+  };
+
   return (
     <div className='navBar'>
       <a href='/'>
@@ -53,7 +65,13 @@ function Nav() {
         <Link to="/">Home</Link>
         <Link to="/inflatables">Inflatables</Link>
         <Link to="/booking">Book Now</Link>
-        <Link to="/signin">Sign In</Link>
+  
+        {isLoggedIn ? (
+          <button className="WhiteButton" onClick={handleLogout}>Sign Out</button>
+        ) : (
+          <Link to="/signin">Sign In</Link>
+        )}
+
       </nav>
     </div>
   );
@@ -63,8 +81,9 @@ function Nav() {
 function AdminNav() {
   return (
     <div className='adminNavBar'>
+      <p> Admin Dashboard</p>
       <nav>
-        <Link to="/admin/dashboard">Home</Link>
+        <Link to="/admin/featured">Featured Products</Link>
         <Link to="/admin/inflatables">Inflatables</Link>
         <Link to="/admin/schedule">Schedule</Link>
         <Link to="/admin/accounts">Accounts</Link>
@@ -101,31 +120,40 @@ function FeaturedProducts() {
 
   useEffect(() => {
     axios.get('http://localhost:8081/get-featured-products')
-      .then(res => setProducts(res.data))
+      .then(res => {
+        const formattedProducts = res.data.map(product => ({
+          ...product,
+          imagePath: product.imagePath ? `http://localhost:8081${product.imagePath}` : ''
+        }));
+        setProducts(formattedProducts);
+      })
       .catch(err => console.error('Error fetching featured products:', err));
   }, []);
   
   return (
     <div className="featuredContainer">
       <div>
-        <p className='featuredTitle'>
-          Featured Products
-        </p>
+        <p className='featuredTitle'>Featured Products</p>
         <section className='featuredSection'>
-          {products.map((product, index) => (
-            <div key={index} className="featuredItem">
-              {product.image && <img src={product.image} alt="Featured" className='featuredImage' />}
-              <p>{product.description}</p>
-            </div>
-          ))}
+          {products.length === 0 ? (
+            <p>No featured products available.</p>
+          ) : (
+            products.map((product, index) => (
+              <div key={index} className="featuredItem">
+                {product.imagePath && (
+                  <img src={product.imagePath} alt="Featured" className='featuredImage' />
+                )}
+                <p>{product.description}</p>
+              </div>
+            ))
+          )}
         </section>
         <button onClick={() => navigate("/inflatables")} className='WhiteButton'>
-            See All of Our Products
+          See All of Our Products
         </button>
       </div>
     </div>
   );
-
 }
 
 function AboutUs() {
@@ -325,7 +353,7 @@ function Home() {
     <div className='page'>
 
       <Nav />
-
+      {isAdmin() && <AdminNav />}
       <div className='content'>
         <FeaturedProducts/>
         <div className='whatsAvailable'>
@@ -347,27 +375,53 @@ function Home() {
 }
 
 export function Inflatables() {
+  const navigate = useNavigate();
+  const [inflatables, setInflatables] = useState([]);
+
+  useEffect(() => {
+    axios.get('http://localhost:8081/get-inflatables')
+      .then(res => {
+        const formattedInflatables = res.data.map(item => ({
+          ...item,
+          imagePath: item.imagePath ? `${item.imagePath}` : ''
+        }));
+        setInflatables(formattedInflatables);
+      })
+      .catch(err => console.error('Error fetching inflatables:', err));
+  }, []);
+
   return (
     <div className='page'>
       <Nav />
+      {isAdmin() && <AdminNav />}
       <div className='content'>
-        <p> Inflatable Card is going to go on this page. I am working on learning that.</p>
-        
+        <section className='inflatableGrid'>
+          {inflatables.length === 0 ? (
+            <p>No inflatables available.</p>
+          ) : (
+            inflatables.map((inflatable, index) => (
+              <div key={index} className="inflatableCard">
+                {inflatable.imagePath && (
+                  <img src={inflatable.imagePath} alt={inflatable.name} className='inflatableImage' />
+                )}
+                <h>{inflatable.name}</h>
+                <p>${inflatable.price} a day</p>
+                <button onClick={() => navigate("/booking")} className='BlueButton'>Book Now</button>
+              </div>
+            ))
+          )}
+        </section>
       </div>
-      <div className='footer'>
-        <Footer/>
-      </div>
+      <Footer />
     </div>
-      
-    
   );
-
 }
 
 export function Booking() {
   return (
     <div className='page'>
       <Nav />
+      {isAdmin() && <AdminNav />}
       <div className='content'>
         <BookingSelector/>
         
@@ -386,6 +440,7 @@ export function About() {
   return (
     <div className='page'>
       <Nav />
+      {isAdmin() && <AdminNav />}
       <div className='content'>
         <div className='aboutUsContainer'>
         <div className='aboutUs'>
@@ -496,11 +551,14 @@ export function SignIn() {
 
 export function AdminFeaturedProducts() {
   const navigate = useNavigate();
-  const [featuredProducts, setFeaturedProducts] = useState([
-    { id: 1, image: '', description: '' },
-    { id: 2, image: '', description: '' },
-    { id: 3, image: '', description: '' },
-  ]);
+
+  const defaultProducts = [
+    { id: 1, imagePath: '', previewUrl: '', description: '' },
+    { id: 2, imagePath: '', previewUrl: '', description: '' },
+    { id: 3, imagePath: '', previewUrl: '', description: '' }
+  ];
+
+  const [featuredProducts, setFeaturedProducts] = useState(defaultProducts);
 
   useEffect(() => {
     const role = localStorage.getItem('role');
@@ -509,14 +567,36 @@ export function AdminFeaturedProducts() {
     }
   }, [navigate]);
 
+  useEffect(() => {
+    axios.get('http://localhost:8081/get-featured-products')
+      .then((res) => {
+        if (res.data.length > 0) {
+          setFeaturedProducts(res.data.map(product => ({
+            ...product,
+            previewUrl: product.imagePath ? `http://localhost:8081${product.imagePath}` : ''
+          })));
+        } else {
+          setFeaturedProducts(defaultProducts);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching featured products:', err);
+        setFeaturedProducts(defaultProducts);
+      });
+  }, []);
+
   const handleFileChange = (event, index) => {
     const file = event.target.files[0];
     if (file) {
-      const newProducts = [...featuredProducts];
-      newProducts[index].image = URL.createObjectURL(file);
-      setFeaturedProducts(newProducts);
+        const newProducts = [...featuredProducts];
+        newProducts[index] = {
+            ...newProducts[index],
+            previewUrl: URL.createObjectURL(file),
+            imageFile: file
+        };
+        setFeaturedProducts(newProducts);
     }
-  };
+};
 
   const handleDescriptionChange = (event, index) => {
     const newProducts = [...featuredProducts];
@@ -524,27 +604,78 @@ export function AdminFeaturedProducts() {
     setFeaturedProducts(newProducts);
   };
 
-  const handleSave = () => {
-    axios.post('http://localhost:8081/save-featured-products', { products: featuredProducts })
-      .then(() => alert('Featured Products Updated'))
-      .catch(err => console.error('Error saving featured products:', err));
-  };
+  const handleSave = async () => {
+    const uploadPromises = featuredProducts.map(async (product, index) => {
+        const formData = new FormData();
+        formData.append('id', product.id);
+        formData.append('description', product.description);
+
+        if (product.imageFile) {
+            formData.append('image', product.imageFile);
+        }
+
+        return axios.post('http://localhost:8081/save-featured-products', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        .then(res => {
+            const updatedProducts = [...featuredProducts];
+            updatedProducts[index] = {
+                ...updatedProducts[index],
+                imagePath: res.data.imagePath,
+                previewUrl: '',
+                imageFile: null
+            };
+            setFeaturedProducts(updatedProducts);
+        })
+        .catch(err => console.error('Error saving featured product:', err));
+    });
+
+    await Promise.all(uploadPromises);
+    alert('Featured Products Updated!');
+};
 
   return (
     <div className='page'>
       <Nav />
-      <div className='content'>
+      {isAdmin() && <AdminNav />}
+      <div className='adminFeaturedContainer'>
         {featuredProducts.map((product, index) => (
-          <div key={index} className="featured-product">
+          <div key={index} className="admin-featured-product">
             <h2>Featured Product {index + 1}:</h2>
-            <label>Image:</label>
-            <input type="file" onChange={(e) => handleFileChange(e, index)} />
-            {product.image && <img src={product.image} alt="Uploaded Preview" className='featuredProductPreview'/>}
-            <label>Description:</label>
-            <input type="text" value={product.description} onChange={(e) => handleDescriptionChange(e, index)} />
+            <div className='featuredInputFields'>
+
+              <div className="fileUploadContainer">
+                <input 
+                  type="file" 
+                  id={`fileInput-${index}`} 
+                  className="hiddenFileInput"
+                  onChange={(e) => handleFileChange(e, index)}
+                  accept="image/*"
+                />
+                <label htmlFor={`fileInput-${index}`} className="WhiteButton FeaturedSubmit">
+                  Upload Image
+                </label>
+                <span className="fileName">
+                  {product.imagePath || product.previewUrl ? "" : "No file chosen"}
+                </span>
+              </div>
+
+              {product.previewUrl && (
+                <img src={product.previewUrl} alt="Preview" className="featuredProductPreview" />
+              )}
+
+              <div className='featuredDescription'>
+                <label>Description:</label>
+                <input 
+                  type="text" 
+                  value={product.description} 
+                  onChange={(e) => handleDescriptionChange(e, index)} 
+                />
+              </div>
+            </div>
           </div>
         ))}
-        <button onClick={handleSave}>Save Featured Products</button>
+        <button onClick={handleSave} className='BlueButton FeaturedSubmit'>Save Featured Products</button>
       </div>
       <div className='footer'>
         <Footer />
@@ -554,26 +685,187 @@ export function AdminFeaturedProducts() {
 }
 
 export function AdminInflatables() {
+  const navigate = useNavigate();
+  const [inflatables, setInflatables] = useState([]);
+
+  useEffect(() => {
+    const role = localStorage.getItem('role');
+    if (role !== 'admin') {
+      navigate('/signin');
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    axios.get('http://localhost:8081/get-inflatables')
+      .then(res => {
+        const formattedInflatables = res.data.map(item => ({
+          ...item,
+          imagePath: item.imagePath ? `${item.imagePath}` : ''
+        }));
+        setInflatables(formattedInflatables);
+      })
+      .catch(err => console.error('Error fetching inflatables:', err));
+  }, []);
+  
+  const handleInputChange = (e, index, field) => {
+    const newInflatables = [...inflatables];
+    newInflatables[index] = {
+        ...newInflatables[index],
+        [field]: e.target.value,
+        imagePath: inflatables[index].imagePath
+    };
+    setInflatables(newInflatables);
+};
+
+
+const handleFileChange = (e, index) => {
+  const file = e.target.files[0];
+  if (file) {
+      setInflatables(prevInflatables => {
+          const newInflatables = [...prevInflatables];
+          newInflatables[index] = {
+              ...newInflatables[index],
+              previewUrl: URL.createObjectURL(file),
+              imageFile: file,
+          };
+          return newInflatables;
+      });
+  }
+};
+
+
+
+
+const addInflatable = () => {
+  setInflatables(prevInflatables => [
+      ...prevInflatables,
+      { 
+          id: null, 
+          name: '', 
+          price: '', 
+          imagePath: '', 
+          previewUrl: '', 
+          imageFile: null 
+      }
+  ]);
+};
+
+
+  const handleDelete = (id, index) => {
+    if (!id) {
+      setInflatables(prev => prev.filter((_, i) => i !== index));
+      return;
+    }
+  
+    axios.delete(`http://localhost:8081/delete-inflatable/${id}`)
+      .then(res => {
+        if (res.data.success) {
+          setInflatables(prev => prev.filter(item => item.id !== id));
+        } else {
+          console.error('Delete failed:', res.data.message);
+        }
+      })
+      .catch(err => console.error('Error deleting inflatable:', err));
+  };
+  
+  const handleSave = async () => {
+    const uploadPromises = inflatables.map(async (inflatable, index) => {
+        const formData = new FormData();
+
+        if (inflatable.id) {
+            formData.append('id', inflatable.id);
+        }
+
+        formData.append('name', inflatable.name);
+        formData.append('price', inflatable.price);
+
+        if (inflatable.imageFile) {
+            formData.append('image', inflatable.imageFile);
+        } else if (inflatable.imagePath) {
+            formData.append('imagePath', inflatable.imagePath);
+        }
+
+        return axios.post('http://localhost:8081/save-inflatable', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        .then(res => {
+            setInflatables(prevInflatables => {
+                const updatedInflatables = [...prevInflatables];
+                updatedInflatables[index] = {
+                    ...updatedInflatables[index],
+                    id: res.data.id || updatedInflatables[index].id,
+                    imagePath: res.data.imagePath || updatedInflatables[index].imagePath,
+                    previewUrl: '',
+                    imageFile: null,
+                };
+                return updatedInflatables;
+            });
+        })
+        .catch(err => console.error('Error saving inflatable:', err));
+    });
+
+    await Promise.all(uploadPromises);
+    alert('Inflatables Updated!');
+};
+
+
+
+
+
   return (
     <div className='page'>
       <Nav />
-      <div className='content'>
-        
-        
-      </div>
-      <div className='footer'>
-        <Footer/>
-      </div>
-    </div>
-    
-  );
+      {isAdmin() && <AdminNav />}
+      <div className='adminInflatablesContainer'>
+        <h2>Inflatable Inventory</h2>
+        <button onClick={addInflatable} className='BlueButton'>Add New</button>
 
+        {inflatables.map((inflatable, index) => (
+          <div key={index} className="admin-inflatable-item">
+
+            <div className="inflatableDetails">
+              <button className="deleteButton" onClick={() => handleDelete(inflatable.id, index)}>
+                  <FontAwesomeIcon icon={faTrash} />
+              </button>
+              <div className='fileUploadContainer'>
+              <input 
+                  type="file" 
+                  id={`inflatableIMGUpload-${index}`} 
+                  className='hiddenFileInput' 
+                  onChange={(e) => handleFileChange(e, index)} 
+              />
+              <label htmlFor={`inflatableIMGUpload-${index}`} className='WhiteButton'>
+                  Upload Image
+              </label>
+              {inflatable.previewUrl ? (
+                  <img src={inflatable.previewUrl} alt="Preview" className="inflatablePreview" />
+              ) : (
+                  inflatable.imagePath && <img src={inflatable.imagePath} alt="Saved" className="inflatablePreview" />
+              )}
+              </div>
+              <label>Title:</label>
+              <input type="text" value={inflatable.name} onChange={(e) => handleInputChange(e, index, 'name')} />
+
+              <label>Price (This is per day):</label>
+              <input type="number" value={inflatable.price} onChange={(e) => handleInputChange(e, index, 'price')} />
+            </div>
+          </div>
+        ))}
+
+        <button onClick={handleSave} className='BlueButton'>Save Inflatables</button>
+      </div>
+      <Footer />
+    </div>
+  );
 }
+
+
 
 export function AdminSchedule() {
   return (
     <div className='page'>
       <Nav />
+      {isAdmin() && <AdminNav />}
       <div className='content'>
         
         
@@ -591,6 +883,7 @@ export function AdminAccounts() {
   return (
     <div className='page'>
       <Nav />
+      {isAdmin() && <AdminNav />}
       <div className='content'>
         
         
