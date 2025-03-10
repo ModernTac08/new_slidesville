@@ -10,7 +10,6 @@ import 'react-datepicker/dist/react-datepicker.css';
 import TimePicker from 'react-time-picker';
 import 'react-time-picker/dist/TimePicker.css';
 import 'react-clock/dist/Clock.css';
-import dayjs from 'dayjs';
 import 'antd/dist/reset.css';
 import axios from 'axios';
 
@@ -24,9 +23,34 @@ const isAdmin = () => {
   return token && role === 'admin';
 };
 
+const isUser = () => {
+  const token = localStorage.getItem('token');
+  const role = localStorage.getItem('role');
+
+  return token && role === 'user';
+};
+
+const AUTO_LOGOUT_TIME = 15 * 60 * 1000;
+
+const resetTimer = (handleLogout) => {
+  if (logoutTimer) {
+    clearTimeout(logoutTimer);
+  }
+  logoutTimer = setTimeout(() => {
+    handleLogout();
+  }, AUTO_LOGOUT_TIME);
+};
+let logoutTimer;
+
 export const ProtectedAdminRoute = () => {
   return isAdmin() ? <Outlet /> : <Navigate to="/signin" />;
 };
+
+export const ProtectedUserRoute = () => {
+  return isUser() ? <Outlet /> : <Navigate to="/signin" />;
+};
+
+
 
 
 //These are the features used in the pages
@@ -43,13 +67,30 @@ function Nav() {
     navigate('/signin');
   };
 
+  useEffect(() => {
+    if (isLoggedIn) {
+      resetTimer(handleLogout);
+  
+      const activityEvents = ['mousemove', 'keydown', 'click', 'scroll'];
+  
+      const reset = () => {resetTimer(handleLogout);};
+  
+      activityEvents.forEach(event => window.addEventListener(event, reset));
+  
+      return () => {
+        activityEvents.forEach(event => window.removeEventListener(event, reset));
+        if (logoutTimer) clearTimeout(logoutTimer);
+      };
+    }
+  }, [isLoggedIn]);
+
   return (
     <div className='navBar'>
       <a href='/'>
       <img className='App-logo'
         src="/images/Logo.png"
         alt="Slidesville Logo"
-        style={{ width: "100px", height: "auto" }}
+        style={{ width: "14vh", height: "auto" }}
       />
       </a>
       <div className='headingTitle'>
@@ -87,6 +128,19 @@ function AdminNav() {
         <Link to="/admin/inflatables">Inflatables</Link>
         <Link to="/admin/schedule">Schedule</Link>
         <Link to="/admin/accounts">Accounts</Link>
+      </nav>
+    </div>
+  );
+
+}
+
+function UserNav() {
+  return (
+    <div className='adminNavBar'>
+      <p> User Dashboard</p>
+      <nav>
+        <Link to="/user/bookings">My Bookings</Link>
+        <Link to="/user/profile">My Account</Link>
       </nav>
     </div>
   );
@@ -172,57 +226,6 @@ function AboutUs() {
   );
 }
 
-function BookingSelector(){
-  const [selectedDates, setSelectedDates] = useState("");
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(null);
-  const [startTime, setStartTime] = useState(null);
-  const [endTime, setEndTime] = useState('');
-
-  const onChange = (dates) => {
-    const [start, end] = dates;
-    setStartDate(start);
-    setEndDate(end);
-
-  };
-
-
-  return (
-    <div className='booking'>
-      <h1>Choose the date of your event</h1>
-      <div className='calendar'>
-        <DatePicker
-          selected={startDate}
-          onChange={onChange}
-          startDate={startDate}
-          endDate={endDate}
-          selectsRange
-          dateFormat='yyyy-MM-dd'
-          className='datePicker'
-          inline
-        />
-      </div>
-      <div className='startTime'>
-        <h2>Event Start Time</h2>
-        <TimePicker
-          className='StartTimePicker'
-          value={startTime}
-          onChange={setStartTime}
-        />
-      </div>
-      <div className='endTime'>
-        <h2>Event End Time</h2>
-        <TimePicker
-          className='EndTimePicker'
-          value={endTime}
-          onChange={setEndTime}
-          
-        />
-      </div>
-    </div>
-  );
-}
-
 export function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -240,10 +243,10 @@ export function SignUp() {
     <div className='page'>
       <Nav />
       <div className='content'>
-      <form onSubmit={handleSignUp}>
+      <form onSubmit={handleSignUp} className='SignInContainer'>
           <h2>Sign Up</h2>
           {message && <p>{message}</p>}
-          <div>
+          <div className='loginInfo'>
             <label htmlFor='email'>Email</label>
             <input
               type='email'
@@ -253,7 +256,7 @@ export function SignUp() {
               required
             />
           </div>
-          <div>
+          <div className='loginInfo'>
             <label htmlFor='password'>Password</label>
             <input
               type='password'
@@ -263,7 +266,7 @@ export function SignUp() {
               required
             />
           </div>
-          <button type='submit'>Sign Up</button>
+          <button type='submit' className='BlueButton loginBtn'>Sign Up</button>
           
         </form>
       </div>
@@ -354,6 +357,7 @@ function Home() {
 
       <Nav />
       {isAdmin() && <AdminNav />}
+      {isUser() && <UserNav />}
       <div className='content'>
         <FeaturedProducts/>
         <div className='whatsAvailable'>
@@ -394,6 +398,7 @@ export function Inflatables() {
     <div className='page'>
       <Nav />
       {isAdmin() && <AdminNav />}
+      {isUser() && <UserNav />}
       <div className='content'>
         <section className='inflatableGrid'>
           {inflatables.length === 0 ? (
@@ -418,21 +423,104 @@ export function Inflatables() {
 }
 
 export function Booking() {
+  const navigate = useNavigate();
+  const [selectedDates, setSelectedDates] = useState([null, null]);
+  const [availableInflatables, setAvailableInflatables] = useState([]);
+  const [selectedInflatable, setSelectedInflatable] = useState(null);
+
+  const [startDate, endDate] = selectedDates;
+
+  useEffect(() => {
+    if (startDate && endDate) {
+      axios
+        .post("http://localhost:8081/get-available-inflatables", {
+          startDate: startDate.toISOString().split("T")[0],
+          endDate: endDate.toISOString().split("T")[0],
+        })
+        .then((res) => setAvailableInflatables(res.data))
+        .catch((err) => console.error("Error fetching available inflatables:", err));
+    }
+  }, [startDate, endDate]);
+
+  const handleBooking = () => {
+    const token = localStorage.getItem("token");
+
+
+    if (!token) {
+        alert("Please sign in to book an inflatable.");
+        navigate("/signin");
+        return;
+    }
+
+    if (!selectedInflatable || !startDate || !endDate) {
+        alert("Please select a date range and an inflatable.");
+        return;
+    }
+
+    axios
+        .post(
+            "http://localhost:8081/book-inflatable",
+            {
+                inflatableId: selectedInflatable.id,
+                startDate,
+                endDate
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+        )
+        .then((res) => {
+            console.log("Booking Response:", res.data);
+            alert("Booking successful!");
+            navigate("/user/bookings");
+        })
+        .catch((err) => {
+            console.error("Error booking inflatable:", err);
+            alert("Error booking inflatable. Check the console for details.");
+        });
+};
+
+
   return (
-    <div className='page'>
+    <div className="page">
       <Nav />
       {isAdmin() && <AdminNav />}
-      <div className='content'>
-        <BookingSelector/>
-        
+      {isUser() && <UserNav />}
+
+      <div className="content">
+
+        <div className="booking">
+
+          <h2>Choose the date of your event</h2>
+
+          <DatePicker
+            selected={startDate}
+            onChange={(dates) => setSelectedDates(dates)}
+            startDate={startDate}
+            endDate={endDate}
+            selectsRange
+            inline
+            className="datePicker"
+          />
+          
+          <h3>Select Available Inflatable:</h3>
+          <select onChange={(e) => setSelectedInflatable(JSON.parse(e.target.value))}>
+            <option value="">-- Choose Inflatable --</option>
+            {availableInflatables.map((inflatable) => (
+              <option key={inflatable.id} value={JSON.stringify(inflatable)}>
+                {inflatable.name} - ${inflatable.price}/day
+              </option>
+            ))}
+          </select>
+
+          <button onClick={handleBooking} className="BlueButton">
+            Book Now
+          </button>
+        </div>
       </div>
-      <div className='footer'>
-        <Footer/>
+      <div className="footer">
+        <Footer />
       </div>
     </div>
-    
   );
-
 }
 
 export function About() {
@@ -441,6 +529,7 @@ export function About() {
     <div className='page'>
       <Nav />
       {isAdmin() && <AdminNav />}
+      {isUser() && <UserNav />}
       <div className='content'>
         <div className='aboutUsContainer'>
         <div className='aboutUs'>
@@ -476,28 +565,25 @@ export function SignIn() {
 
   function handleSubmit(event) {
     event.preventDefault();
-    axios
-      .post('http://localhost:8081/login', { email, password })
-      .then((res) => {
-        if (res.data.success) {
-          localStorage.setItem('token', res.data.token); 
-          localStorage.setItem('role', res.data.role); 
-          setMessage(res.data.message || "Login Successful");
-
-          if (res.data.role === 'admin') {
-            navigate('/admin/featured');
-          } else {
-            navigate('/');
-          }
-        } else {
-          setMessage(res.data.message || "Login failed. Please check your credentials.");
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        setMessage("An error occurred while trying to log in.");
-      });
+    axios.post("http://localhost:8081/login", { email, password })
+        .then((res) => {
+            if (res.data.success) {
+                localStorage.setItem("token", res.data.token);
+                localStorage.setItem("userId", String(res.data.id));
+                localStorage.setItem("email", res.data.email);
+                localStorage.setItem("role", res.data.role);
+                navigate(res.data.role === "admin" ? "/admin/featured" : "/");
+            } else {
+                setMessage(res.data.message || "Login failed. Please check your credentials.");
+            }
+        })
+        .catch((err) => {
+            console.error(err);
+            setMessage("An error occurred while trying to log in.");
+        });
   }
+
+
 
 
   return (
@@ -859,8 +945,6 @@ const addInflatable = () => {
   );
 }
 
-
-
 export function AdminSchedule() {
   return (
     <div className='page'>
@@ -899,6 +983,156 @@ export function AdminAccounts() {
 
 
 
+
+
+//These are the User Pages
+
+export function UserBookings() {
+  const navigate = useNavigate();
+  const [bookings, setBookings] = useState([]);
+
+  useEffect(() => {
+      axios.get("http://localhost:8081/user/bookings", {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      })
+      .then(res => setBookings(res.data))
+      .catch(err => console.error("Error fetching bookings:", err));
+  }, []);
+
+  const handleCancel = (bookingId) => {
+    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+
+    const userId = parseInt(localStorage.getItem('userId'), 10);
+
+    if (isNaN(userId)) {
+        alert("Error: User ID is invalid. Please log in again.");
+        return;
+    }
+
+    axios.delete(`http://localhost:8081/user/cancel-booking/${bookingId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        params: { userId }
+    })
+    .then(res => {
+        alert(res.data.message);
+        setBookings(prev => prev.filter(booking => booking.id !== bookingId));
+    })
+    .catch(err => {
+        console.error("Error canceling booking:", err);
+        alert("Error canceling booking");
+    });
+};
+
+
+  return (
+    <div className='page'>
+      <Nav />
+      {isUser() && <UserNav />}
+      <div className='content'>
+          <h2>My Bookings</h2>
+
+          {bookings.length === 0 ? (
+              <p>No bookings found.</p>
+          ) : (
+              <ul className="booking-list">
+                  {bookings.map(booking => (
+                      <li key={booking.id} className="booking-item">
+                          <p><strong>{booking.inflatableName}</strong></p>
+                          <p>{new Date(booking.startDate).toLocaleDateString()} - {new Date(booking.endDate).toLocaleDateString()}</p>
+                          <button onClick={() => handleCancel(booking.id)} className="cancelButton">
+                              Cancel Booking
+                          </button>
+                      </li>
+                  ))}
+              </ul>
+          )}
+        </div>
+        <Footer />
+    </div>
+  );
+}
+
+export function UserProfile() {
+  const [userData, setUserData] = useState({ firstName: '', lastName: '', phoneNumber: '', email: '' });
+  const navigate = useNavigate();
+  useEffect(() => {
+    const userId = parseInt(localStorage.getItem("userId"), 10);
+
+    if (isNaN(userId)) {
+        console.error("Invalid userId in localStorage");
+        return;
+    }
+
+    axios.get(`http://localhost:8081/user/profile`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+    .then(res => {
+        if (res.data.success === false) {
+            console.error("Error:", res.data.message);
+        } else {
+            setUserData(res.data);
+        }
+    })
+    .catch(err => console.error("Error fetching profile:", err));
+}, []);
+
+
+const handleUpdate = () => {
+  const userId = localStorage.getItem('userId'); 
+
+  if (!userId) {
+      alert("Error: User ID is missing.");
+      return;
+  }
+
+  axios.put('http://localhost:8081/user/update-profile', 
+  {
+      userId: parseInt(userId, 10),
+      email: userData.email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      phoneNumber: userData.phoneNumber,
+  }, 
+  { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+  )
+  .then(res => {
+      console.log("Update successful:", res.data);
+      alert(res.data.message);
+  })
+  .catch(err => {
+      console.error("Error updating profile:", err);
+      alert("Profile update failed.");
+  });
+};
+
+
+
+  return (
+      <div className="page">
+        <Nav />
+        {isUser() && <UserNav />}
+        <div className='content'>
+          <h2>My Account Information</h2>
+          <div className='accountInfo'>
+            <label>First Name:</label>
+            <input type="text" value={userData.firstName} onChange={(e) => setUserData({ ...userData, firstName: e.target.value })} />
+
+            <label>Last Name:</label>
+            <input type="text" value={userData.lastName} onChange={(e) => setUserData({ ...userData, lastName: e.target.value })} />
+
+            <label>Phone Number:</label>
+            <input type="text" value={userData.phoneNumber} onChange={(e) => setUserData({ ...userData, phoneNumber: e.target.value })} />
+
+            <label>Email:</label>
+            <input type="text" value={userData.email} onChange={(e) => setUserData({ ...userData, email: e.target.value })} />
+          </div>
+          <button onClick={() => handleUpdate()} className="BlueButton AcountInfoButtons">Update Profile</button>
+          <button onClick={() => navigate("/forgotpass")} className='BlueButton AcountInfoButtons'>Change Password</button>
+        </div>
+        <Footer />
+      </div>
+  );
+}
 
 
 

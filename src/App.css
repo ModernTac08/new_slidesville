@@ -47,10 +47,11 @@ html, body {
 }
 
 .content {
+  text-align: center;
   flex: 1;
   padding-top: 20vh;
   padding-bottom: 20vh;
-  
+  overflow-y: auto;
 }
 
 
@@ -333,8 +334,6 @@ html, body {
   margin: 0 auto;
 }
 
-
-
 .aboutUsContainer {
   text-align: center;
   margin: 20px auto;
@@ -362,8 +361,6 @@ html, body {
   padding-bottom: 15vh;
 
 }
-
-
 
 .SignInContainer {
   text-align: left;
@@ -450,7 +447,6 @@ html, body {
   color: #007bff;
 }
 
-
 .errorMessage {
   color: red;
   font-size: 14px;
@@ -514,6 +510,8 @@ html, body {
     display: none;
   }
 
+
+
 /* Admin Inflatables */
 
   .adminInflatablesContainer {
@@ -547,7 +545,6 @@ html, body {
     font-weight: bold;
     gap: 2vh;
   }
-  
 
   .inflatablePreview {
     
@@ -556,7 +553,6 @@ html, body {
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
-
 
   .deleteButton {
     position: absolute;
@@ -572,6 +568,129 @@ html, body {
   .deleteButton:hover {
     color: darkred;
   }
+
+
+  /* Booking Section */
+
+  .booking {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .booking select {
+    width: 220px;
+    padding: 10px;
+    margin: 10px auto;
+    display: block;
+    font-size: 16px;
+    border: 2px solid #007bff;
+    border-radius: 5px;
+    background-color: white;
+    cursor: pointer;
+}
+
+
+/* Styles for the Date Picker */
+
+.react-datepicker {
+  font-size: 2rem;
+  width: 100%; 
+  max-width: 80vh; 
+  padding: 2vh;
+  border-radius: 12px; 
+  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.2);
+  margin-bottom: 5vh;
+}
+.react-datepicker__day-names {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  font-size: 2rem;
+  font-weight: bold;
+  padding: 0 5vh;
+  gap: 2vh;
+  
+}
+.react-datepicker__day-name {
+    width: 100%; 
+    padding: 2vh;
+   
+}
+.react-datepicker__month-container {
+  align-items: center;
+  width: 100%;
+  
+}
+.react-datepicker__month {
+  display: grid !important;
+  grid-template-columns: repeat(1, 7fr);
+  gap: 2vh; 
+  justify-items: center; 
+  align-items: center; 
+  
+}
+.react-datepicker__day {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  font-size: 2rem ;
+  text-align: center;
+  width: 9vh !important;
+  height: 5vh;
+  border-radius: 8px;
+  padding: 5px ;
+  
+}
+.react-datepicker__navigation {
+  top: 2vh !important;
+  width: 10vh !important;
+  height: 8vh !important;
+}
+.react-datepicker__navigation-icon::before {
+  width: 3vh !important;
+  height: 3vh !important; 
+  
+  
+}
+.react-datepicker__header {
+  background-color: #007bff !important;
+  
+}
+.react-datepicker__current-month {
+  font-size: 2rem !important;
+  font-weight: bold;
+  text-align: center;
+}
+
+
+/* User Account Section Styles */
+
+.accountInfo {
+  font-size: 1.6rem;
+  max-width: 80vh;
+  border-radius: 12px;
+  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.2);
+  margin: auto;
+  margin-top: 5vh;
+  margin-bottom: 5vh;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  align-items: center;
+  justify-content: center;
+  padding: 2vh;
+  text-align: center;
+  gap: 2vh;
+}
+
+.AcountInfoButtons {
+  font-size: 3vh;
+  margin: 2vh;
+}
+
+
+
+
+/* Styles for the Footer */
 
 .footer {
   background-color: #909090;
@@ -590,7 +709,6 @@ html, body {
   font-size: calc(2px + 2vmin);
   color: rgb(0, 0, 0);
 }
-
 .footer .footerContact {
   display:flex;
   justify-content:space-evenly;
@@ -600,7 +718,6 @@ html, body {
   margin:  5vh;
 
 }
-
 .footer p {
   display:flex;
   justify-content:space-evenly;
@@ -610,14 +727,12 @@ html, body {
   margin:  5vh;
 
 }
-
 .footer .footerContact a{
   
   text-decoration: none;
   color: black;
 
 }
-
 .footer .footerContact .FacebookSocial {
   color: #16416e;
 }

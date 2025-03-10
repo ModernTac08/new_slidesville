@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import { SignIn, Booking, Inflatables, About, App, AdminFeaturedProducts, SignUp, ForgotPassword, ResetPassword, ProtectedAdminRoute, AdminInflatables, AdminAccounts, AdminSchedule } from "./App";
+import { SignIn, Booking, Inflatables, About, App, AdminFeaturedProducts, SignUp, 
+  ForgotPassword, ResetPassword, ProtectedAdminRoute, AdminInflatables, AdminAccounts, AdminSchedule, ProtectedUserRoute, UserBookings, UserProfile } from "./App";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 
@@ -22,6 +23,10 @@ root.render(
         <Route path="inflatables" element={<AdminInflatables />} />
         <Route path="schedule" element={<AdminSchedule />} />
         <Route path="accounts" element={<AdminAccounts />} />
+      </Route>
+      <Route path="/user/*" element={<ProtectedUserRoute />}>
+        <Route path="bookings" element={<UserBookings />} />
+        <Route path="profile" element={<UserProfile />} />
       </Route>
     </Routes>
   </BrowserRouter>,

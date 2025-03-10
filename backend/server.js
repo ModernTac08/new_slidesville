@@ -4,7 +4,10 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 
-const { loginUser, registerUser, requestPasswordReset, resetPassword, saveFeaturedProduct, getFeaturedProducts, saveInflatable, getInflatables, deleteInflatable } = require('./dbFiles/dbOperation');
+const { loginUser, registerUser, requestPasswordReset, resetPassword, saveFeaturedProduct, getFeaturedProducts, 
+    saveInflatable, getInflatables, deleteInflatable, getAvailableInflatables, saveBooking, getUserBookings, 
+    updateUserProfile, getUserProfile, cancelBooking } = require('./dbFiles/dbOperation');
+
 require('dotenv').config();
 
 
@@ -33,8 +36,10 @@ const upload = multer({ storage });
 
 
 function authenticateToken(req, res, next) {
-    const token = req.header('Authorization');
-    if (!token) return res.status(401).json({ message: 'Access Denied' });
+    const authHeader = req.header('Authorization');
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ message: 'Access Denied: No token provided' });
 
     try {
         const verified = jwt.verify(token, process.env.JWT_SECRET);
@@ -46,13 +51,6 @@ function authenticateToken(req, res, next) {
 }
 
 
-function authorizeAdmin(req, res, next) {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Admins Only' });
-    }
-    next();
-}
-
 
 
 app.post('/login', async (req, res) => {
@@ -61,20 +59,17 @@ app.post('/login', async (req, res) => {
 
     if (result.success) {
         const token = jwt.sign(
-            { email, role: result.role },
+            { id: result.id, email: result.email, role: result.role },
             process.env.JWT_SECRET, 
             { expiresIn: '1h' } 
         );
 
-        return res.json({ success: true, token, role: result.role });
+        return res.json({ success: true, token, id: result.id, email: result.email, role: result.role });
     } else {
         return res.json(result);
     }
 });
 
-app.get('/admin-data', authenticateToken, authorizeAdmin, (req, res) => {
-    res.json({ message: "Successfully Logged in as Admin!" });
-});
 
 
 app.post('/signup', async (req, res) => {
@@ -157,11 +152,114 @@ app.delete('/delete-inflatable/:id', async (req, res) => {
 });
 
   
+/* This is for the Booking page */
+
+app.post('/get-available-inflatables', async (req, res) => {
+    const { startDate, endDate } = req.body;
+
+    try {
+        const availableInflatables = await getAvailableInflatables(startDate, endDate);
+        res.json(availableInflatables);
+    } catch (error) {
+        console.error("Error getting available inflatables:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+
+app.post('/book-inflatable', authenticateToken, async (req, res) => {
+    const { inflatableId, startDate, endDate } = req.body;
+    const userId = req.user.id;
+
+    if (!userId) {
+        return res.status(401).json({ success: false, message: "User not authenticated." });
+    }
+
+    try {
+        const result = await saveBooking(userId, inflatableId, startDate, endDate); 
+        res.json(result);
+    } catch (error) {
+        console.error("Error booking inflatable:", error);
+        res.status(500).json({ success: false, message: "Error booking inflatable." });
+    }
+});
+
+
+
+/* This is for the User Dashboard stuff */
+
+app.get('/user/bookings', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+
+    if (!userId) {
+        return res.status(401).json({ success: false, message: "User not authenticated." });
+    }
+
+    try {
+        const bookings = await getUserBookings(userId);
+        res.json(bookings);
+    } catch (error) {
+        console.error("Error fetching user bookings:", error);
+        res.status(500).json({ success: false, message: "Error fetching bookings" });
+    }
+});
+
+
+app.get('/user/profile', authenticateToken, async (req, res) => {
+    const userId = parseInt(req.user.id, 10);
+
+    if (isNaN(userId)) {
+        return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+
+    try {
+        const profile = await getUserProfile(userId);
+        res.json(profile);
+    } catch (error) {
+        console.error("Error fetching profile:", error);
+        res.status(500).json({ success: false, message: "Error fetching profile" });
+    }
+});
+
+
+
+
+app.put('/user/update-profile', authenticateToken, async (req, res) => {
+    const { userId, email, firstName, lastName, phoneNumber } = req.body;
+
+    if (!userId || isNaN(userId)) {
+        return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+
+    try {
+        const result = await updateUserProfile(userId, email, firstName, lastName, phoneNumber);
+        res.json(result);
+    } catch (error) {
+        console.error("Error updating profile:", error);
+        res.status(500).json({ success: false, message: "Error updating profile" });
+    }
+});
 
 
 
 
 
+app.delete('/user/cancel-booking/:id', authenticateToken, async (req, res) => {
+    const bookingId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.user.id, 10);
+
+    if (isNaN(userId) || isNaN(bookingId)) {
+        return res.status(400).json({ success: false, message: "Invalid userId or bookingId" });
+    }
+
+    try {
+        const result = await cancelBooking(bookingId, userId);
+        res.json(result);
+    } catch (error) {
+        console.error("Error canceling booking:", error);
+        res.status(500).json({ success: false, message: "Error canceling booking" });
+    }
+});
 
 
 
