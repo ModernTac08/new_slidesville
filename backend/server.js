@@ -6,7 +6,8 @@ const path = require('path');
 
 const { loginUser, registerUser, requestPasswordReset, resetPassword, saveFeaturedProduct, getFeaturedProducts, 
     saveInflatable, getInflatables, deleteInflatable, getAvailableInflatables, saveBooking, getUserBookings, 
-    updateUserProfile, getUserProfile, cancelBooking } = require('./dbFiles/dbOperation');
+    updateUserProfile, getUserProfile, cancelBooking, getUsers, updateUserRole, deleteUser, getUserRentals, 
+    updateRentalStatus, getUserById, getAllBookings, updateUserInfo} = require('./dbFiles/dbOperation');
 
 require('dotenv').config();
 
@@ -39,16 +40,22 @@ function authenticateToken(req, res, next) {
     const authHeader = req.header('Authorization');
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) return res.status(401).json({ message: 'Access Denied: No token provided' });
+    if (!token) {
+        console.error("Access Denied: No token provided");
+        return res.status(401).json({ message: "Access Denied: No token provided" });
+    }
 
     try {
         const verified = jwt.verify(token, process.env.JWT_SECRET);
         req.user = verified;
+        console.log("User Verified:", verified);
         next();
     } catch (error) {
-        res.status(403).json({ message: 'Invalid Token' });
+        console.error("Invalid Token:", error.message);
+        return res.status(403).json({ message: "Invalid Token" });
     }
 }
+
 
 
 
@@ -263,7 +270,211 @@ app.delete('/user/cancel-booking/:id', authenticateToken, async (req, res) => {
 
 
 
+app.get('/admin/get-users', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
 
+    try {
+        const users = await getUsers();
+        res.json(users);
+    } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).json({ success: false, message: "Error fetching users" });
+    }
+});
+
+app.put('/admin/update-role', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { userId, newRole } = req.body;
+
+    try {
+        const result = await updateUserRole(userId, newRole);
+        res.json(result);
+    } catch (error) {
+        console.error("Error updating role:", error);
+        res.status(500).json({ success: false, message: "Error updating role" });
+    }
+});
+
+app.delete('/admin/delete-user/:id', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { id } = req.params;
+
+    try {
+        const result = await deleteUser(id);
+        res.json(result);
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).json({ success: false, message: "Error deleting user" });
+    }
+});
+
+app.get('/admin/get-user/:id', authenticateToken, async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            console.error("Unauthorized Admin Access Attempt");
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+
+        const { id } = req.params;
+        console.log("Received user ID:", id);
+
+        if (!id || isNaN(id)) {
+            console.error("Invalid user ID in request:", id);
+            return res.status(400).json({ success: false, message: "Invalid user ID" });
+        }
+
+        const user = await getUserById(parseInt(id, 10));
+        if (!user) {
+            console.error(`User with ID ${id} not found.`);
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        console.log("User data fetched successfully:", user);
+        res.json(user);
+    } catch (error) {
+        console.error("CRITICAL ERROR in /admin/get-user/:id:", error);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+});
+
+
+
+
+app.get('/admin/user-rentals/:id', authenticateToken, async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            console.error("Unauthorized Admin Rental History Access");
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+
+        const { id } = req.params;
+        console.log("Fetching rentals for user ID:", id);
+
+        if (!id || isNaN(id)) {
+            console.error("Invalid user ID:", id);
+            return res.status(400).json({ success: false, message: "Invalid user ID" });
+        }
+
+        const rentals = await getUserRentals(parseInt(id, 10));
+
+        if (!rentals.length) {
+            console.log(`No rentals found for user ID ${id}`);
+            return res.json([]);
+        }
+
+        res.json(rentals);
+    } catch (error) {
+        console.error("Error fetching user rentals:", error);
+        res.status(500).json({ success: false, message: "Error fetching rentals" });
+    }
+});
+
+
+
+app.put('/admin/update-rental-status', authenticateToken, async (req, res) => {
+    const { rentalId, field, value } = req.body;
+    await updateRentalStatus(rentalId, field, value);
+    res.json({ success: true });
+});
+
+
+
+app.post('/admin/book-inflatable', authenticateToken, async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { userId, inflatableId, startDate, endDate } = req.body;
+
+    if (!userId || !inflatableId || !startDate || !endDate) {
+        return res.status(400).json({ success: false, message: "Missing booking details" });
+    }
+
+    try {
+        await saveBooking(userId, inflatableId, startDate, endDate);
+        res.json({ success: true, message: "Booking successful!" });
+    } catch (error) {
+        console.error("Error booking inflatable:", error);
+        res.status(500).json({ success: false, message: "Booking failed" });
+    }
+});
+
+
+app.delete('/admin/cancel-booking/:id', authenticateToken, async (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+        return res.status(400).json({ success: false, message: "Invalid booking ID" });
+    }
+
+    try {
+        await cancelBooking(parseInt(id, 10));
+        res.json({ success: true, message: "Booking canceled successfully" });
+    } catch (error) {
+        console.error("Error canceling booking:", error);
+        res.status(500).json({ success: false, message: "Error canceling booking" });
+    }
+});
+
+
+app.post('/admin/create-user', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { email, password, firstName, lastName, role } = req.body;
+
+    if (!email || !password || !role) {
+        return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const response = await registerUser(email, password, firstName, lastName, role);
+    res.json(response);
+});
+
+
+app.get('/admin/get-bookings', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    try {
+        const bookings = await getAllBookings();
+        res.json(bookings);
+    } catch (error) {
+        console.error("Error fetching bookings:", error);
+        res.status(500).json({ success: false, message: "Error fetching bookings" });
+    }
+});
+
+
+
+app.put('/admin/update-user', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { id, firstName, lastName, phoneNumber } = req.body;
+
+    if (!id || isNaN(id)) {
+        return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+
+    const result = await updateUserInfo(id, firstName, lastName, phoneNumber);
+    res.status(result.success ? 200 : 500).json(result);
+});
 
 
 

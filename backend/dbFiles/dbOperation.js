@@ -3,6 +3,7 @@ const sql = require('mssql');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const moment = require('moment');
 require('dotenv').config();
 
 // User Login
@@ -40,22 +41,30 @@ async function loginUser(email, password) {
 
 
 // User SignUp
-async function registerUser(email, password) {
+async function registerUser(email, password, firstName = null, lastName = null, role = "user") {
     try {
-        const hashedPassword = bcrypt.hashSync(password, 10);
-        
         const pool = await sql.connect(config);
-        await pool.request()
+        const hashedPassword = bcrypt.hashSync(password, 10);
+
+        const result = await pool.request()
             .input('email', sql.VarChar, email)
             .input('password', sql.VarChar, hashedPassword)
-            .query('INSERT INTO users (email, password) VALUES (@email, @password)');
+            .input('firstName', sql.VarChar, firstName)
+            .input('lastName', sql.VarChar, lastName)
+            .input('role', sql.VarChar, role)
+            .query(`
+                INSERT INTO users (email, password, firstName, lastName, role)
+                OUTPUT INSERTED.*
+                VALUES (@email, @password, @firstName, @lastName, @role)
+            `);
 
-        return { success: true, message: "Account created successfully" };
+        return { success: true, user: result.recordset[0], message: "Account created successfully" };
     } catch (error) {
         console.error("Error during signup:", error);
         return { success: false, message: "Error creating account" };
     }
 }
+
 
 
 // Password Reset
@@ -311,25 +320,21 @@ async function saveBooking(userId, inflatableId, startDate, endDate) {
 async function getUserBookings(userId) {
     try {
         const pool = await sql.connect(config);
-        
-        if (!userId || isNaN(userId)) {
-            console.error("Invalid userId:", userId);
-            return { success: false, message: "Invalid user ID" };
-        }
+        const result = await pool.request().query(`
+            SELECT b.id, i.name AS inflatableName, b.startDate, b.endDate, u.email AS userEmail 
+            FROM bookings b
+            JOIN inflatables i ON b.inflatableId = i.id
+            JOIN users u ON b.userId = u.id
+        `);
 
-        const result = await pool.request()
-            .input('userId', sql.Int, parseInt(userId, 10))
-            .query(`
-                SELECT b.id, i.name AS inflatableName, b.startDate, b.endDate
-                FROM bookings b
-                JOIN inflatables i ON b.inflatableId = i.id
-                WHERE b.userId = @userId
-                ORDER BY b.startDate ASC
-            `);
-
-        return result.recordset;
+        return result.recordset.map(booking => ({
+            id: booking.id,
+            inflatableName: booking.inflatableName,
+            startDate: moment.utc(booking.startDate).local().toISOString(),
+            endDate: moment.utc(booking.endDate).local().toISOString()
+        }));
     } catch (error) {
-        console.error("Database Error: Unable to fetch user bookings", error);
+        console.error("Error fetching bookings:", error);
         return [];
     }
 }
@@ -413,10 +418,195 @@ async function cancelBooking(bookingId, userId) {
 }
 
 
+/* Admin's User Management */
 
+async function getUsers() {
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool.request().query("SELECT id, firstName, lastName, phoneNumber, email, role FROM users");
+
+        console.log("Database Query Result:", result.recordset);
+
+        if (!result.recordset.length) {
+            console.error("No users found in database");
+        }
+
+        return result.recordset;
+    } catch (error) {
+        console.error("Error fetching users from database:", error);
+        return [];
+    }
+}
+
+
+async function updateUserRole(userId, newRole) {
+    if (!["admin", "user"].includes(newRole.toLowerCase())) {
+        return { success: false, message: "Invalid role. Allowed values: 'admin', 'user'" };
+    }
+
+    try {
+        const pool = await sql.connect(config);
+        await pool.request()
+            .input('userId', sql.Int, userId)
+            .input('newRole', sql.VarChar, newRole)
+            .query("UPDATE users SET role = @newRole WHERE id = @userId");
+
+        return { success: true, message: "User role updated successfully" };
+    } catch (error) {
+        console.error("Error updating user role:", error);
+        return { success: false, message: "Error updating role" };
+    }
+}
+
+async function deleteUser(userId) {
+    try {
+        const pool = await sql.connect(config);
+        await pool.request()
+            .input('userId', sql.Int, userId)
+            .query("DELETE FROM users WHERE id = @userId");
+
+        return { success: true, message: "User deleted successfully" };
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        return { success: false, message: "Error deleting user" };
+    }
+}
+
+
+async function getUserRentals(userId) {
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool.request()
+            .input("userId", sql.Int, userId)
+            .query(`
+                SELECT b.id, i.name AS inflatableName, b.startDate, b.endDate, 
+                       b.paid, b.documentsCompleted
+                FROM dbo.bookings b
+                JOIN dbo.inflatables i ON b.inflatableId = i.id
+                WHERE b.userId = @userId
+            `);
+
+        return result.recordset;
+    } catch (error) {
+        console.error("Database Error: Unable to fetch user rentals", error);
+        return [];
+    }
+}
+
+
+async function updateRentalStatus(rentalId, field, value) {
+    try {
+        const pool = await sql.connect(config);
+
+        const rentalCheck = await pool.request()
+            .input("rentalId", sql.Int, rentalId)
+            .query("SELECT id FROM rentals WHERE id = @rentalId");
+
+        if (rentalCheck.recordset.length === 0) {
+            return { success: false, message: "Rental not found" };
+        }
+
+        await pool.request()
+            .input("rentalId", sql.Int, rentalId)
+            .input("value", sql.VarChar, value)
+            .query(`UPDATE rentals SET ${field} = @value WHERE id = @rentalId`);
+
+        return { success: true, message: "Rental status updated successfully" };
+    } catch (error) {
+        console.error("Database Error: Unable to update rental status", error);
+        return { success: false, message: "Error updating rental status" };
+    }
+}
+
+async function getUserById(userId) {
+    try {
+        if (!userId || isNaN(userId)) {
+            console.error("Invalid userId:", userId);
+            return null;
+        }
+
+        const pool = await sql.connect(config);
+        const result = await pool.request()
+            .input('userId', sql.Int, parseInt(userId, 10))
+            .query("SELECT id, email, role, firstName, lastName, phoneNumber FROM dbo.users WHERE id = @userId");
+
+        if (result.recordset.length === 0) {
+            console.error(`User with ID ${userId} not found.`);
+            return null;
+        }
+
+        return result.recordset[0];
+    } catch (error) {
+        console.error("Database Error:", error);
+        return null;
+    }
+}
+
+async function updateUserInfo(userId, firstName, lastName, phoneNumber) {
+    try {
+        const pool = await sql.connect(config);
+        await pool.request()
+            .input('userId', sql.Int, userId)
+            .input('firstName', sql.VarChar, firstName)
+            .input('lastName', sql.VarChar, lastName)
+            .input('phoneNumber', sql.VarChar, phoneNumber)
+            .query(`
+                UPDATE users 
+                SET firstName = @firstName, lastName = @lastName, phoneNumber = @phoneNumber 
+                WHERE id = @userId
+            `);
+        return { success: true, message: "User updated successfully" };
+    } catch (error) {
+        console.error("Database Error (updateUserInfo):", error);
+        return { success: false, message: "Failed to update user" };
+    }
+}
+
+
+
+
+
+/*This is for the Schedule page */
+
+async function getAllBookings() {
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool.request().query(`
+            SELECT 
+            b.id, 
+            i.name AS inflatableName, 
+            b.startDate, 
+            b.endDate, 
+            u.email AS userEmail, 
+            u.firstName, 
+            u.lastName,
+            u.id AS userId
+            FROM bookings b
+            JOIN inflatables i ON b.inflatableId = i.id
+            JOIN users u ON b.userId = u.id
+            ORDER BY b.startDate ASC
+        `);
+
+        return result.recordset.map(booking => ({
+            id: booking.id,
+            inflatableName: booking.inflatableName,
+            startDate: booking.startDate,
+            endDate: booking.endDate,
+            userId: booking.userId,
+            firstName: booking.firstName,
+            lastName: booking.lastName,
+            userEmail: booking.userEmail
+        }));
+        
+    } catch (error) {
+        console.error("Error fetching bookings:", error);
+        return [];
+    }
+}
 
 
 
 module.exports = { loginUser, registerUser, sendResetEmail, requestPasswordReset, 
     resetPassword, getFeaturedProducts, saveFeaturedProduct, saveInflatable, getInflatables, 
-    deleteInflatable, saveBooking, getAvailableInflatables, getUserBookings, updateUserProfile, getUserProfile, cancelBooking};
+    deleteInflatable, saveBooking, getAvailableInflatables, getUserBookings, updateUserProfile, getUserProfile, 
+    cancelBooking, getUsers, updateUserRole, deleteUser, getUserRentals, updateRentalStatus, getUserById, getAllBookings, updateUserInfo};

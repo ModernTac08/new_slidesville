@@ -2,7 +2,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import './App.css';
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams, Navigate, Outlet } from "react-router-dom";
+import { Link, useNavigate, useSearchParams, Navigate, Outlet, useParams } from "react-router-dom";
 import { faFacebook } from "@fortawesome/free-brands-svg-icons";
 import { faTrash } from '@fortawesome/free-solid-svg-icons';
 import DatePicker from 'react-datepicker';
@@ -12,7 +12,9 @@ import 'react-time-picker/dist/TimePicker.css';
 import 'react-clock/dist/Clock.css';
 import 'antd/dist/reset.css';
 import axios from 'axios';
-
+import { Calendar, momentLocalizer } from "react-big-calendar";
+import moment from "moment";
+import "react-big-calendar/lib/css/react-big-calendar.css";
 
 // This is the functiom checking if the user is an Admin
 
@@ -42,6 +44,7 @@ const resetTimer = (handleLogout) => {
 };
 let logoutTimer;
 
+
 export const ProtectedAdminRoute = () => {
   return isAdmin() ? <Outlet /> : <Navigate to="/signin" />;
 };
@@ -50,7 +53,7 @@ export const ProtectedUserRoute = () => {
   return isUser() ? <Outlet /> : <Navigate to="/signin" />;
 };
 
-
+const localizer = momentLocalizer(moment);
 
 
 //These are the features used in the pages
@@ -946,42 +949,562 @@ const addInflatable = () => {
 }
 
 export function AdminSchedule() {
-  return (
-    <div className='page'>
-      <Nav />
-      {isAdmin() && <AdminNav />}
-      <div className='content'>
-        
-        
-      </div>
-      <div className='footer'>
-        <Footer/>
-      </div>
-    </div>
-    
-  );
+  const [bookings, setBookings] = useState([]);
+  const navigate = useNavigate();
 
+  useEffect(() => {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+          console.error("No authentication token found.");
+          alert("Session expired. Please log in again.");
+          window.location.href = "/signin";
+          return;
+      }
+
+      axios.get(`http://localhost:8081/admin/get-bookings`, {
+          headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => {
+          console.log("Fetched bookings:", res.data);
+          setBookings(res.data);
+      })
+      .catch(err => {
+          console.error("Error getting bookings:", err);
+      });
+  }, []);
+
+  const events = bookings.map(booking => {
+    if (!booking.startDate || !booking.endDate) {
+      console.error("Invalid booking data:", booking);
+      return null;
+    }
+  
+    const start = new Date(booking.startDate);
+    const end = new Date(booking.endDate);
+    start.setDate(start.getDate() + 1);
+    end.setDate(end.getDate() + 1);
+
+  
+    const fullName = `${booking.firstName || "No Name"} ${booking.lastName || ""}`.trim();
+    const email = booking.userEmail || "No Email";
+  
+    return {
+      id: booking.id,
+      title: `${booking.inflatableName} (${fullName} - ${email})`,
+      start,
+      end,
+      allDay: true,
+      userId: booking.userId
+    };
+  }).filter(event => event !== null);
+  
+
+  const handleEventClick = (event) => {
+      if (event.userId) {
+          navigate(`/admin/user/${event.userId}`);
+      } else {
+          alert("No user associated with this booking.");
+      }
+  };
+
+  return (
+      <div className='page'>
+          <Nav />
+          {isAdmin() && <AdminNav />}
+          <div className='content'>
+              <div className="schedule-container">
+                  <h2>Booking Schedule</h2>
+
+                  <Calendar
+                      localizer={localizer}
+                      events={events}
+                      startAccessor="start"
+                      endAccessor="end"
+                      style={{ height: 600 }}
+                      onSelectEvent={handleEventClick}
+                  />
+              </div>
+          </div>
+          <div className='footer'>
+              <Footer />
+          </div>
+      </div>
+  );
 }
 
-export function AdminAccounts() {
+export function AdminAccounts() { 
+  const [users, setUsers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const navigate = useNavigate();
+
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUser, setNewUser] = useState({
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      role: "user"
+  });
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+        console.error("No authentication token found.");
+        return;
+    }
+
+    axios.get('http://localhost:8081/admin/get-users', {
+        headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(res => {
+        console.log("Users received from API:", res.data);
+        setUsers(res.data);
+    })
+    .catch(err => {
+        console.error("Error fetching users:", err);
+
+        if (err.response && err.response.status === 403) {
+            alert("Session expired. Please log in again.");
+            localStorage.removeItem('token');
+            localStorage.removeItem('role');
+            window.location.href = "/signin";
+        }
+    });
+}, []);
+
+
+  const handleRoleChange = (userId, newRole) => {
+      axios.put('http://localhost:8081/admin/update-role', 
+      { userId, newRole }, 
+      { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then(res => {
+          alert(res.data.message);
+          setUsers(users.map(user => user.id === userId ? { ...user, role: newRole } : user));
+      })
+      .catch(err => console.error("Error updating role:", err));
+  };
+
+  const handleDeleteUser = (userId) => {
+      if (!window.confirm("Are you sure you want to delete this user?")) return;
+
+      axios.delete(`http://localhost:8081/admin/delete-user/${userId}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      })
+      .then(res => {
+          alert(res.data.message);
+          setUsers(users.filter(user => user.id !== userId));
+      })
+      .catch(err => console.error("Error deleting user:", err));
+  };
+
+  const handleUserClick = (id) => {
+    if (!id || isNaN(id)) {
+        console.error("Invalid user ID:", id);
+        return;
+    }
+    navigate(`/admin/user/${id}`);
+};
+
+const handleCreateUser = () => {
+  const token = localStorage.getItem("token");
+
+  axios.post("http://localhost:8081/admin/create-user", newUser, {
+    headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(response => {
+        alert("User created successfully!");
+        window.location.reload();
+    })
+    .catch(error => {
+        console.error("Error creating user:", error);
+        alert("Failed to create user.");
+  });
+
+};
+
+const filteredUsers = users.filter(user => {
+  const search = searchTerm.toLowerCase();
   return (
-    <div className='page'>
-      <Nav />
-      {isAdmin() && <AdminNav />}
-      <div className='content'>
-        
-        
-      </div>
-      <div className='footer'>
-        <Footer/>
-      </div>
-    </div>
-    
+    (user.firstName && user.firstName.toLowerCase().includes(search)) ||
+    (user.lastName && user.lastName.toLowerCase().includes(search)) ||
+    (user.email && user.email.toLowerCase().includes(search)) ||
+    (user.phoneNumber && user.phoneNumber.includes(search))
   );
+});
 
+return (
+  <div className='page'>
+    <Nav />
+    {isAdmin() && <AdminNav />}
+    <div className='content'>
+      <h2>Manage User Accounts</h2>
+      <input
+        type="text"
+        placeholder="Search by Name, Email, or Phone..."
+        className="searchInput"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+
+
+      <button className="WhiteButton AdminAddUserBtn" onClick={() => setShowAddUserModal(true)}>Add User</button>
+
+      {showAddUserModal && (
+          <div className="modal">
+              <div className="modal-content">
+                  <h3>Create New User</h3>
+                  <input 
+                      type="text" 
+                      placeholder="First Name" 
+                      value={newUser.firstName} 
+                      onChange={(e) => setNewUser({...newUser, firstName: e.target.value})} 
+                  />
+                  <input 
+                      type="text" 
+                      placeholder="Last Name" 
+                      value={newUser.lastName} 
+                      onChange={(e) => setNewUser({...newUser, lastName: e.target.value})} 
+                  />
+                  <input 
+                      type="email" 
+                      placeholder="Email" 
+                      value={newUser.email} 
+                      onChange={(e) => setNewUser({...newUser, email: e.target.value})} 
+                  />
+                  <input 
+                      type="password" 
+                      placeholder="Password" 
+                      value={newUser.password} 
+                      onChange={(e) => setNewUser({...newUser, password: e.target.value})} 
+                  />
+                  <select 
+                      value={newUser.role} 
+                      onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+                  >
+                      <option value="user">User</option>
+                      <option value="admin">Admin</option>
+                  </select>
+                  <button onClick={handleCreateUser}>Create</button>
+                  <button onClick={() => setShowAddUserModal(false)}>Cancel</button>
+              </div>
+          </div>
+      )}
+      <table className="userTable">
+        <thead>
+          <tr>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredUsers.map(user => (
+            <tr 
+              key={user.id} 
+              className="clickableRow"
+              onClick={() => handleUserClick(user.id)}
+              style={{ cursor: "pointer" }}
+            >
+              <td>{user.firstName || "N/A"}</td>
+              <td>{user.lastName || "N/A"}</td>
+              <td>{user.phoneNumber || "N/A"}</td>
+              <td>{user.email}</td>
+              <td onClick={(e) => e.stopPropagation()}> 
+                  <select 
+                      value={user.role} 
+                      onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                  >
+                      <option value="user">User</option>
+                      <option value="admin">Admin</option>
+                  </select>
+              </td>
+              <td>
+                <button className="adminDeleteButton" onClick={(e) => { e.stopPropagation(); handleDeleteUser(user.id); }}>
+                  <FontAwesomeIcon icon={faTrash} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div className='footer'>
+      <Footer />
+    </div>
+  </div>
+);
+
+}           
+
+export function AdminUserDetails() {
+  const { userId } = useParams();
+  const navigate = useNavigate();
+  const [user, setUser] = useState({
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+    email: "",
+  });
+  const [rentals, setRentals] = useState([]);
+  const [inflatables, setInflatables] = useState([]);
+  const [selectedInflatable, setSelectedInflatable] = useState(null);
+  const [selectedDates, setSelectedDates] = useState([null, null]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      console.error("No authentication token found.");
+      alert("Session expired. Please log in again.");
+      window.location.href = "/signin";
+      return;
+    }
+
+    axios
+      .get(`http://localhost:8081/admin/get-user/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        if (res.data) {
+          setUser(res.data);
+        } else {
+          alert("User not found.");
+        }
+      })
+      .catch((err) => console.error("Error fetching user:", err));
+
+    axios
+      .get(`http://localhost:8081/admin/user-rentals/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => setRentals(res.data))
+      .catch((err) => console.error("Error getting rental history:", err));
+
+    axios
+      .get("http://localhost:8081/get-inflatables")
+      .then((res) => setInflatables(res.data))
+      .catch((err) => console.error("Error getting inflatables:", err));
+  }, [userId]);
+
+  const handleUpdateUser = () => {
+    const token = localStorage.getItem("token");
+
+    axios
+      .put(
+        `http://localhost:8081/admin/update-user`,
+        {
+          id: userId,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phoneNumber: user.phoneNumber,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+      .then((res) => {
+        alert(res.data.message);
+      })
+      .catch((err) => {
+        console.error("Error updating user:", err);
+        alert("Failed to update user.");
+      });
+  };
+
+  const handleBooking = () => {
+    if (!selectedInflatable || !selectedDates[0] || !selectedDates[1]) {
+      alert("Please select an inflatable and a date range.");
+      return;
+    }
+
+    axios
+      .post(
+        "http://localhost:8081/admin/book-inflatable",
+        {
+          userId,
+          inflatableId: selectedInflatable.id,
+          startDate: selectedDates[0],
+          endDate: selectedDates[1],
+        },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      )
+      .then(() => {
+        alert("Booking successful!");
+        window.location.reload();
+      })
+      .catch((err) => {
+        console.error("Error booking inflatable:", err);
+        alert("Booking failed.");
+      });
+  };
+
+  const updateRentalStatus = (rentalId, field, value) => {
+    axios
+      .put(
+        "http://localhost:8081/admin/update-rental-status",
+        { rentalId, field, value },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      )
+      .then(() => {
+        setRentals((prevRentals) =>
+          prevRentals.map((rental) =>
+            rental.id === rentalId ? { ...rental, [field]: value } : rental
+          )
+        );
+      })
+      .catch((err) => console.error("Error updating rental status:", err));
+  };
+
+  const handleCancelBooking = (bookingId) => {
+    if (!window.confirm("Are you sure you want to cancel this booking?"))
+      return;
+
+    axios
+      .delete(`http://localhost:8081/admin/cancel-booking/${bookingId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then(() => {
+        alert("Booking canceled successfully!");
+        setRentals((prevRentals) =>
+          prevRentals.filter((rental) => rental.id !== bookingId)
+        );
+      })
+      .catch((err) => {
+        console.error("Error canceling booking:", err);
+        alert("Error canceling booking.");
+      });
+  };
+
+  return (
+    <div className="page">
+      <Nav />
+      {localStorage.getItem("role") === "admin" && <AdminNav />}
+      <div className="content">
+        <div className='userDetailPage'>
+          <button onClick={() => navigate(-1)} className='WhiteButton backToAccountsBtn'>Back to Accounts</button>
+          <h2>User Details</h2>
+          <div className='userDetails'>
+            <label>First Name:</label>
+            <input
+              type="text"
+              value={user.firstName}
+              onChange={(e) => setUser({ ...user, firstName: e.target.value })}
+            />
+
+            <label>Last Name:</label>
+            <input
+              type="text"
+              value={user.lastName}
+              onChange={(e) => setUser({ ...user, lastName: e.target.value })}
+            />
+
+            <label>Phone Number:</label>
+            <input
+              type="text"
+              value={user.phoneNumber}
+              onChange={(e) => setUser({ ...user, phoneNumber: e.target.value })}
+            />
+
+            <label>Email (Read-only):</label>
+            <input type="email" value={user.email} readOnly />
+
+            <button onClick={handleUpdateUser} className="BlueButton">
+              Save Changes
+            </button>
+          </div>
+
+          <div className='rentalHistory'>
+            <h2>Rental History</h2>
+            {rentals.length > 0 ? (
+              <table className="userTable">
+                <thead>
+                  <tr>
+                    <th>Inflatable</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Paid</th>
+                    <th>Documents Completed</th>
+                    <th>Cancel Booking</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rentals.map((rental) => (
+                    <tr key={rental.id}>
+                      <td>{rental.inflatableName}</td>
+                      <td>{new Date(rental.startDate).toLocaleDateString()}</td>
+                      <td>{new Date(rental.endDate).toLocaleDateString()}</td>
+                      <td>
+                        <select
+                          value={rental.paid}
+                          onChange={(e) =>
+                            updateRentalStatus(rental.id, "paid", e.target.value)
+                          }
+                        >
+                          <option value="No">No</option>
+                          <option value="Yes">Yes</option>
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          value={rental.documentsCompleted}
+                          onChange={(e) =>
+                            updateRentalStatus(rental.id, "documentsCompleted", e.target.value)
+                          }
+                        >
+                          <option value="No">No</option>
+                          <option value="Yes">Yes</option>
+                        </select>
+                      </td>
+                      <td>
+                        <button
+                          className="adminDeleteButton"
+                          onClick={() => handleCancelBooking(rental.id)}
+                        >
+                          <FontAwesomeIcon icon={faTrash} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p>No rental history found.</p>
+            )}
+          </div>
+          
+          <div className='AdminUserBooking'>
+            <h2>Book an Inflatable for This User</h2>
+
+            <DatePicker selected={selectedDates[0]} onChange={(dates) => setSelectedDates(dates)} startDate={selectedDates[0]} endDate={selectedDates[1]} selectsRange inline />
+            <select onChange={(e) => setSelectedInflatable(JSON.parse(e.target.value))}>
+              <option value="">-- Choose Inflatable --</option>
+              {inflatables.map((inflatable) => (
+                <option key={inflatable.id} value={JSON.stringify(inflatable)}>
+                  {inflatable.name} - ${inflatable.price}/day
+                </option>
+              ))}
+            </select>
+
+           
+            <button onClick={handleBooking} className="BlueButton">Book Now</button>
+          </div>
+          
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
 }
-
-
 
 
 
@@ -1024,32 +1547,46 @@ export function UserBookings() {
 };
 
 
-  return (
-    <div className='page'>
-      <Nav />
-      {isUser() && <UserNav />}
-      <div className='content'>
-          <h2>My Bookings</h2>
+return (
+  <div className='page'>
+    <Nav />
+    {isUser() && <UserNav />}
+    <div className='content'>
+      <h2>My Bookings</h2>
 
-          {bookings.length === 0 ? (
-              <p>No bookings found.</p>
-          ) : (
-              <ul className="booking-list">
-                  {bookings.map(booking => (
-                      <li key={booking.id} className="booking-item">
-                          <p><strong>{booking.inflatableName}</strong></p>
-                          <p>{new Date(booking.startDate).toLocaleDateString()} - {new Date(booking.endDate).toLocaleDateString()}</p>
-                          <button onClick={() => handleCancel(booking.id)} className="cancelButton">
-                              Cancel Booking
-                          </button>
-                      </li>
-                  ))}
-              </ul>
-          )}
-        </div>
-        <Footer />
+      {bookings.length === 0 ? (
+        <p>No bookings found.</p>
+      ) : (
+        <table className="userTable">
+          <thead>
+            <tr>
+              <th>Inflatable</th>
+              <th>Start Date</th>
+              <th>End Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bookings.map((booking) => (
+              <tr key={booking.id}>
+                <td>{booking.inflatableName}</td>
+                <td>{new Date(booking.startDate).toLocaleDateString()}</td>
+                <td>{new Date(booking.endDate).toLocaleDateString()}</td>
+                <td>
+                  <button onClick={() => handleCancel(booking.id)} className="RedButton">
+                    Cancel Booking
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
-  );
+    <Footer />
+  </div>
+);
+
 }
 
 export function UserProfile() {
