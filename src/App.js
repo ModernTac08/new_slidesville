@@ -236,24 +236,67 @@ export function SignUp() {
   const navigate = useNavigate();
 
   const handleSignUp = (e) => {
-      e.preventDefault();
-      axios.post('http://localhost:8081/signup', { email, password })
-          .then((res) => setMessage(res.data.message || res.data.error))
-          .catch((err) => setMessage(err.response?.data?.error || "Error signing up"));
+    e.preventDefault();
+
+    axios.post('http://localhost:8081/signup', { email, password })
+      .then((res) => {
+        if (res.data.success) {
+          axios.post('http://localhost:8081/login', { email, password })
+            .then((res) => {
+              if (res.data.success) {
+                localStorage.setItem("token", res.data.token);
+                localStorage.setItem("userId", String(res.data.id));
+                localStorage.setItem("email", res.data.email);
+                localStorage.setItem("role", res.data.role);
+
+                const intent = JSON.parse(localStorage.getItem("bookingIntent"));
+
+                if (intent) {
+                  localStorage.removeItem("bookingIntent");
+                  axios.post(
+                    "http://localhost:8081/book-inflatable",
+                    {
+                      inflatableId: intent.inflatableId,
+                      startDate: intent.startDate,
+                      endDate: intent.endDate
+                    },
+                    { headers: { Authorization: `Bearer ${res.data.token}` } }
+                  )
+                  .then(() => {
+                    alert("Booking successful!");
+                    navigate("/user/bookings");
+                  })
+                  .catch((err) => {
+                    console.error("Booking error after signup:", err);
+                    alert("Signup successful, but booking failed.");
+                    navigate("/booking");
+                  });
+                } else {
+                  navigate(res.data.role === "admin" ? "/admin/featured" : "/");
+                }
+              }
+            });
+        } else {
+          setMessage(res.data.message || "Signup failed. Please try again.");
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        setMessage("Error signing up.");
+      });
   };
 
   return (
     <div className='page'>
       <Nav />
       <div className='content'>
-      <form onSubmit={handleSignUp} className='SignInContainer'>
+        <form onSubmit={handleSignUp} className='SignInContainer'>
           <h2>Sign Up</h2>
           {message && <p>{message}</p>}
           <div className='loginInfo'>
             <label htmlFor='email'>Email</label>
             <input
               type='email'
-              placeholder='Email Address'
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -263,14 +306,12 @@ export function SignUp() {
             <label htmlFor='password'>Password</label>
             <input
               type='password'
-              placeholder='Password'
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
           <button type='submit' className='BlueButton loginBtn'>Sign Up</button>
-          
         </form>
       </div>
       <div className='footer'>
@@ -279,6 +320,8 @@ export function SignUp() {
     </div>
   );
 }
+
+
 
 export function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -434,53 +477,68 @@ export function Booking() {
   const [startDate, endDate] = selectedDates;
 
   useEffect(() => {
+    const intent = JSON.parse(localStorage.getItem("bookingIntent"));
+    if (intent) {
+      setSelectedDates([new Date(intent.startDate), new Date(intent.endDate)]);
+      setSelectedInflatable(intent.inflatable);
+    }
+  }, []);
+
+  useEffect(() => {
     if (startDate && endDate) {
       axios
         .post("http://localhost:8081/get-available-inflatables", {
           startDate: startDate.toISOString().split("T")[0],
           endDate: endDate.toISOString().split("T")[0],
         })
-        .then((res) => setAvailableInflatables(res.data))
-        .catch((err) => console.error("Error fetching available inflatables:", err));
+        .then((res) => {
+          setAvailableInflatables(res.data);
+        })
+        .catch((err) =>
+          console.error("Error fetching available inflatables:", err)
+        );
     }
   }, [startDate, endDate]);
 
   const handleBooking = () => {
     const token = localStorage.getItem("token");
 
-
     if (!token) {
-        alert("Please sign in to book an inflatable.");
-        navigate("/signin");
-        return;
+      alert("Please sign in to book an inflatable.");
+      const bookingIntent = {
+        inflatableId: selectedInflatable.id,
+        startDate,
+        endDate,
+      };
+      localStorage.setItem("bookingIntent", JSON.stringify(bookingIntent));
+      navigate("/signin");
+      return;
     }
 
     if (!selectedInflatable || !startDate || !endDate) {
-        alert("Please select a date range and an inflatable.");
-        return;
+      alert("Please select a date range and an inflatable.");
+      return;
     }
 
     axios
-        .post(
-            "http://localhost:8081/book-inflatable",
-            {
-                inflatableId: selectedInflatable.id,
-                startDate,
-                endDate
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
-        )
-        .then((res) => {
-            console.log("Booking Response:", res.data);
-            alert("Booking successful!");
-            navigate("/user/bookings");
-        })
-        .catch((err) => {
-            console.error("Error booking inflatable:", err);
-            alert("Error booking inflatable. Check the console for details.");
-        });
-};
-
+      .post(
+        "http://localhost:8081/book-inflatable",
+        {
+          inflatableId: selectedInflatable.id,
+          startDate: startDate.toISOString().split("T")[0],
+          endDate: endDate.toISOString().split("T")[0],
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      .then((res) => {
+        alert("Booking successful!");
+        navigate("/user/bookings");
+      })
+      .catch((err) => {
+        console.error("Error booking inflatable:", err);
+        alert("Error booking inflatable. Check the console for details.");
+      });
+  };
 
   return (
     <div className="page">
@@ -489,9 +547,7 @@ export function Booking() {
       {isUser() && <UserNav />}
 
       <div className="content">
-
         <div className="booking">
-
           <h2>Choose the date of your event</h2>
 
           <DatePicker
@@ -503,9 +559,12 @@ export function Booking() {
             inline
             className="datePicker"
           />
-          
+
           <h3>Select Available Inflatable:</h3>
-          <select onChange={(e) => setSelectedInflatable(JSON.parse(e.target.value))}>
+          <select
+            onChange={(e) => setSelectedInflatable(JSON.parse(e.target.value))}
+            value={selectedInflatable ? JSON.stringify(selectedInflatable) : ""}
+          >
             <option value="">-- Choose Inflatable --</option>
             {availableInflatables.map((inflatable) => (
               <option key={inflatable.id} value={JSON.stringify(inflatable)}>
@@ -525,6 +584,9 @@ export function Booking() {
     </div>
   );
 }
+
+
+
 
 export function About() {
   const navigate = useNavigate();
@@ -569,25 +631,47 @@ export function SignIn() {
   function handleSubmit(event) {
     event.preventDefault();
     axios.post("http://localhost:8081/login", { email, password })
-        .then((res) => {
-            if (res.data.success) {
-                localStorage.setItem("token", res.data.token);
-                localStorage.setItem("userId", String(res.data.id));
-                localStorage.setItem("email", res.data.email);
-                localStorage.setItem("role", res.data.role);
-                navigate(res.data.role === "admin" ? "/admin/featured" : "/");
-            } else {
-                setMessage(res.data.message || "Login failed. Please check your credentials.");
-            }
-        })
-        .catch((err) => {
-            console.error(err);
-            setMessage("An error occurred while trying to log in.");
-        });
+      .then((res) => {
+        if (res.data.success) {
+          localStorage.setItem("token", res.data.token);
+          localStorage.setItem("userId", String(res.data.id));
+          localStorage.setItem("email", res.data.email);
+          localStorage.setItem("role", res.data.role);
+
+          const intent = JSON.parse(localStorage.getItem("bookingIntent"));
+
+          if (intent) {
+            localStorage.removeItem("bookingIntent");
+            axios.post(
+              "http://localhost:8081/book-inflatable",
+              {
+                inflatableId: intent.inflatableId,
+                startDate: intent.startDate,
+                endDate: intent.endDate
+              },
+              { headers: { Authorization: `Bearer ${res.data.token}` } }
+            )
+            .then(() => {
+              alert("Booking successful!");
+              navigate("/user/bookings");
+            })
+            .catch((err) => {
+              console.error("Booking error after login:", err);
+              alert("Login successful, but booking failed.");
+              navigate("/booking");
+            });
+          } else {
+            navigate(res.data.role === "admin" ? "/admin/featured" : "/");
+          }
+        } else {
+          setMessage(res.data.message || "Login failed. Please check your credentials.");
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        setMessage("An error occurred while trying to log in.");
+      });
   }
-
-
-
 
   return (
     <div className='page'>
@@ -600,7 +684,6 @@ export function SignIn() {
             <label htmlFor='email'>Email</label>
             <input
               type='email'
-              placeholder=''
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -610,7 +693,6 @@ export function SignIn() {
             <label htmlFor='password'>Password</label>
             <input
               type='password'
-              placeholder=''
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -621,7 +703,6 @@ export function SignIn() {
           <p className='signUpText'>
             Need an account?<button onClick={() => navigate("/signup")} className='signUpBtn'>SIGN UP</button>
           </p>
-
         </form>
       </div>
       <div className='footer'>
@@ -630,6 +711,7 @@ export function SignIn() {
     </div>
   );
 }
+
 
 
 
@@ -1255,6 +1337,10 @@ export function AdminUserDetails() {
   const [inflatables, setInflatables] = useState([]);
   const [selectedInflatable, setSelectedInflatable] = useState(null);
   const [selectedDates, setSelectedDates] = useState([null, null]);
+  const formatDate = (iso) => {
+    const [year, month, day] = iso.slice(0, 10).split("-");
+    return `${month}/${day}/${year}`;
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -1441,8 +1527,8 @@ export function AdminUserDetails() {
                   {rentals.map((rental) => (
                     <tr key={rental.id}>
                       <td>{rental.inflatableName}</td>
-                      <td>{new Date(rental.startDate).toLocaleDateString()}</td>
-                      <td>{new Date(rental.endDate).toLocaleDateString()}</td>
+                      <td>{formatDate(rental.startDate)}</td>
+                      <td>{formatDate(rental.endDate)}</td>
                       <td>
                         <select
                           value={rental.paid}
@@ -1513,6 +1599,10 @@ export function AdminUserDetails() {
 export function UserBookings() {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
+  const formatDate = (iso) => {
+    const [year, month, day] = iso.slice(0, 10).split("-");
+    return `${month}/${day}/${year}`;
+  };
 
   useEffect(() => {
       axios.get("http://localhost:8081/user/bookings", {
@@ -1570,8 +1660,8 @@ return (
             {bookings.map((booking) => (
               <tr key={booking.id}>
                 <td>{booking.inflatableName}</td>
-                <td>{new Date(booking.startDate).toLocaleDateString()}</td>
-                <td>{new Date(booking.endDate).toLocaleDateString()}</td>
+                <td>{formatDate(booking.startDate)}</td>
+                <td>{formatDate(booking.endDate)}</td>
                 <td>
                   <button onClick={() => handleCancel(booking.id)} className="RedButton">
                     Cancel Booking

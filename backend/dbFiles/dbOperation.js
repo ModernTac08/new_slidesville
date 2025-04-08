@@ -320,12 +320,14 @@ async function saveBooking(userId, inflatableId, startDate, endDate) {
 async function getUserBookings(userId) {
     try {
         const pool = await sql.connect(config);
-        const result = await pool.request().query(`
-            SELECT b.id, i.name AS inflatableName, b.startDate, b.endDate, u.email AS userEmail 
-            FROM bookings b
-            JOIN inflatables i ON b.inflatableId = i.id
-            JOIN users u ON b.userId = u.id
-        `);
+        const result = await pool.request()
+            .input('userId', sql.Int, userId)
+            .query(`
+                SELECT b.id, i.name AS inflatableName, b.startDate, b.endDate
+                FROM bookings b
+                JOIN inflatables i ON b.inflatableId = i.id
+                WHERE b.userId = @userId
+            `);
 
         return result.recordset.map(booking => ({
             id: booking.id,
@@ -338,6 +340,7 @@ async function getUserBookings(userId) {
         return [];
     }
 }
+
 
 
 
@@ -392,19 +395,18 @@ async function updateUserProfile(userId, email, firstName, lastName, phoneNumber
 
 
 
-async function cancelBooking(bookingId, userId) {
+async function cancelBooking(bookingId, userId = null) {
     try {
         const pool = await sql.connect(config);
+        const request = pool.request().input('bookingId', sql.Int, bookingId);
 
-        if (isNaN(userId) || isNaN(bookingId)) {
-            console.error("Invalid userId or bookingId:", { userId, bookingId });
-            return { success: false, message: "Invalid user ID or booking ID" };
+        let query = "DELETE FROM bookings WHERE id = @bookingId";
+        if (userId) {
+            request.input('userId', sql.Int, userId);
+            query += " AND userId = @userId";
         }
 
-        const result = await pool.request()
-            .input('bookingId', sql.Int, parseInt(bookingId, 10))
-            .input('userId', sql.Int, parseInt(userId, 10))
-            .query('DELETE FROM bookings WHERE id = @bookingId AND userId = @userId');
+        const result = await request.query(query);
 
         if (result.rowsAffected[0] > 0) {
             return { success: true, message: "Booking canceled successfully!" };
