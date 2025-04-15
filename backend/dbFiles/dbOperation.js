@@ -112,10 +112,35 @@ async function sendResetEmail(email, token) {
     const resetLink = `http://localhost:3000/reset-password?token=${token}`;
     
     const mailOptions = {
-        from: `Slidesville Support <${process.env.EMAIL_USER}>`,
+        from: `"Slidesville Support" <${process.env.EMAIL_USER}>`,
         to: email,
-        subject: "Reset Your Password",
-        html: `<p>Click <a href="${resetLink}">here</a> to reset your password. The link expires in 1 hour.</p>`
+        subject: "Reset Your Password - Slidesville",
+        html: `
+            <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.05);">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h1 style="color: #0078D4; font-size: 32px; margin: 0;">Slidesville</h1>
+                        <p style="color: #555; font-size: 16px;">Support Team</p>
+                    </div>
+                    <h2 style="color: #333;">Reset Your Password</h2>
+                    <p style="font-size: 16px; color: #555;">
+                        We received a request to reset your password. Click the button below to proceed:
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${resetLink}" style="background-color: #2d89ef; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-size: 16px;">
+                            Reset Password
+                        </a>
+                    </div>
+                    <p style="font-size: 14px; color: #888;">
+                        If you did not request a password reset, you can safely ignore this email.
+                    </p>
+                    <p style="font-size: 14px; color: #aaa; text-align: center; margin-top: 40px;">
+                        This link will expire in 1 hour.<br />
+                        &copy; ${new Date().getFullYear()} Slidesville. All rights reserved.
+                    </p>
+                </div>
+            </div>
+        `
     };
 
     await transporter.sendMail(mailOptions);
