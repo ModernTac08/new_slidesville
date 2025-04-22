@@ -321,8 +321,6 @@ export function SignUp() {
   );
 }
 
-
-
 export function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
@@ -388,9 +386,6 @@ export function ResetPassword() {
       </div>
   );
 }
-
-
-
 
 
 //These are the main pages
@@ -585,9 +580,6 @@ export function Booking() {
   );
 }
 
-
-
-
 export function About() {
   const navigate = useNavigate();
   return (
@@ -711,11 +703,6 @@ export function SignIn() {
     </div>
   );
 }
-
-
-
-
-
 
 
 //These are the Admin pages
@@ -1760,7 +1747,6 @@ const handleUpdate = () => {
       </div>
   );
 }
-
 
 
 
